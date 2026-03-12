@@ -15,7 +15,7 @@
  *       icon: "mdi:trumpet"
  */
 
-const CARD_VERSION = "1.3.0";
+const CARD_VERSION = "1.3.1";
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
@@ -24,17 +24,10 @@ const STYLES = `
     display: block;
     container-type: inline-size;
     container-name: bingo;
-    /* Fill the grid cell in Sections layout; auto in masonry */
-    height: 100%;
   }
 
   ha-card {
     padding: 0;
-    overflow: hidden;
-    /* Fill :host and allow internal scrolling */
-    height: 100%;
-    display: flex;
-    flex-direction: column;
   }
 
   /* ── Header ── */
@@ -67,12 +60,6 @@ const STYLES = `
     display: flex;
     flex-direction: column;
     gap: 12px;
-    /* Grow to fill ha-card and scroll if content overflows */
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    scrollbar-width: thin;
-    scrollbar-color: var(--divider-color) transparent;
   }
 
   .section-label {
@@ -327,15 +314,15 @@ class BingoabendCard extends HTMLElement {
   }
 
   // Legacy masonry layout: 1 unit ≈ 50 px
-  getCardSize() { return 5; }
+  getCardSize() { return 7; }
 
   // Sections layout (HA 2024.3+): 12-column grid, 1 row ≈ 56 px
   getGridOptions() {
     return {
       columns: 6,
-      rows: 5,
+      rows: 7,
       min_columns: 3,
-      min_rows: 4,
+      min_rows: 5,
     };
   }
 
@@ -766,14 +753,9 @@ const CALLER_STYLES = `
     display: block;
     container-type: inline-size;
     container-name: caller;
-    height: 100%;
   }
   ha-card {
     padding: 0;
-    overflow: hidden;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
   }
   .card-header {
     display: flex;
@@ -803,11 +785,6 @@ const CALLER_STYLES = `
     display: flex;
     flex-direction: column;
     gap: 10px;
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    scrollbar-width: thin;
-    scrollbar-color: var(--divider-color) transparent;
   }
   .number-display {
     text-align: center;
@@ -881,10 +858,6 @@ const CALLER_STYLES = `
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
-    flex: 1;
-    overflow-y: auto;
-    scrollbar-width: thin;
-    scrollbar-color: var(--divider-color) transparent;
     align-content: flex-start;
   }
   .called-number {
@@ -951,10 +924,10 @@ class BingoabendNumberCallerCard extends HTMLElement {
 
   set hass(hass) { this._hass = hass; }
 
-  getCardSize() { return 6; }
+  getCardSize() { return 7; }
 
   getGridOptions() {
-    return { columns: 4, rows: 6, min_columns: 3, min_rows: 4 };
+    return { columns: 4, rows: 7, min_columns: 3, min_rows: 5 };
   }
 
   _render() {
