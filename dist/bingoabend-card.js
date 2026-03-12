@@ -823,11 +823,11 @@ class BingoabendCard extends HTMLElement {
 
   _attachListeners(card) {
     // Mic toggle
-    card.getElementById('btn-mic')?.addEventListener('click', () => this._activateMic());
-    card.getElementById('btn-music')?.addEventListener('click', () => this._activateMusic());
+    card.querySelector('#btn-mic')?.addEventListener('click', () => this._activateMic());
+    card.querySelector('#btn-music')?.addEventListener('click', () => this._activateMusic());
 
     // Volume slider
-    const volSlider = card.getElementById('volume-slider');
+    const volSlider = card.querySelector('#volume-slider');
     if (volSlider) {
       volSlider.addEventListener('input', (e) => {
         const valEl = this.shadowRoot.getElementById('volume-value');
@@ -847,9 +847,9 @@ class BingoabendCard extends HTMLElement {
     });
 
     // Number caller
-    card.getElementById('btn-draw')?.addEventListener('click', () => this._drawNumber());
-    card.getElementById('btn-reset')?.addEventListener('click', () => this._resetGame());
-    card.getElementById('btn-tts')?.addEventListener('click', () => this._toggleTts());
+    card.querySelector('#btn-draw')?.addEventListener('click', () => this._drawNumber());
+    card.querySelector('#btn-reset')?.addEventListener('click', () => this._resetGame());
+    card.querySelector('#btn-tts')?.addEventListener('click', () => this._toggleTts());
   }
 
   // ─── Actions ───────────────────────────────────────────────────────────────
