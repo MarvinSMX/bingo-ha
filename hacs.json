@@ -1,0 +1,8 @@
+{
+  "name": "Bingoabend",
+  "domain": "bingoabend",
+  "documentation": "https://github.com/your-user/bingoabend",
+  "homeassistant": "2023.6.0",
+  "codeowners": [],
+  "render_readme": true
+}

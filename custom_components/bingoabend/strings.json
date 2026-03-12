@@ -1,0 +1,34 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Bingoabend einrichten",
+        "description": "Konfiguriere deine Sonos-Lautsprecher-Steuerung für den Bingoabend.",
+        "data": {
+          "sonos_entity": "Sonos Media Player",
+          "linein_source": "Line-In Quellenname",
+          "music_source": "Musik-Quellenname (optional)"
+        },
+        "data_description": {
+          "sonos_entity": "Die entity_id deines Sonos-Lautsprechers (z.B. media_player.sonos_wohnzimmer)",
+          "linein_source": "Exakter Name der Line-In Quelle in Sonos (z.B. 'Line-In' oder 'TV')",
+          "music_source": "Quellenname für Musikwiedergabe (leer = zuletzt verwendete Wiedergabe)"
+        }
+      }
+    },
+    "error": {
+      "entity_not_found": "Sonos-Gerät nicht gefunden. Bitte entity_id prüfen.",
+      "source_not_found": "Line-In Quelle nicht in der Quellenliste gefunden."
+    },
+    "abort": {
+      "already_configured": "Bingoabend ist bereits konfiguriert."
+    }
+  },
+  "entity": {
+    "switch": {
+      "mikrofon": {
+        "name": "Mikrofon (Line-In)"
+      }
+    }
+  }
+}
