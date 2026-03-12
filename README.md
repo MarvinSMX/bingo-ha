@@ -1,13 +1,14 @@
 # Bingoabend – Home Assistant Integration
 
-Custom Home Assistant Integration + Lovelace Card für den Bingoabend.
+Custom Home Assistant Integration + Lovelace Cards für den Bingoabend.
 
-## Features
+## Cards im Überblick
 
-- **Mikrofon umschalten** – Schaltet Sonos auf Line-In (Sennheiser Empfänger) oder zurück auf Musik
-- **Lautstärke** – Slider direkt in der Karte
-- **Soundboard** – Konfigurierbares Grid mit beliebigen Sounds
-- **Nummern-Caller** – Zieht zufällige Bingo-Zahlen (1–75 oder 1–90), mit optionaler TTS-Ansage über Sonos
+| Card | Typ | Beschreibung |
+|------|-----|-------------|
+| **Bingoabend Card** | `custom:bingoabend-card` | Mikrofon umschalten (Line-In) & Lautstärke |
+| **Nummern-Caller** | `custom:bingoabend-numbercaller-card` | Zieht zufällige Bingo-Zahlen mit optionaler TTS-Ansage |
+| **Soundboard** | `custom:bingoabend-soundboard-card` | Konfigurierbares Grid mit beliebigen Sounds |
 
 ---
 
@@ -30,47 +31,70 @@ Custom Home Assistant Integration + Lovelace Card für den Bingoabend.
 
 ---
 
-## Lovelace Card einrichten
+## Lovelace Cards einrichten
 
-### 1. Card als Ressource hinzufügen (nur falls nicht automatisch)
+### Ressource hinzufügen (nur falls nicht automatisch)
 
 **Einstellungen** → **Dashboards** → **3-Punkte** → **Ressourcen** → **+ Hinzufügen**
 
 | Feld | Wert |
 |------|------|
-| URL  | `/bingoabend/bingoabend-card.js?v=1.0.0` |
+| URL  | `/bingoabend/bingoabend-card.js` |
 | Typ  | JavaScript-Modul |
 
-### 2. Card in Dashboard einfügen
+---
 
-Dashboard bearbeiten → **+ Karte hinzufügen** → **Benutzerdefiniert: Bingoabend Card**
+### Bingoabend Card
 
-Oder manuell im YAML-Modus:
+Mikrofon (Line-In) umschalten und Lautstärke regeln.
 
 ```yaml
 type: custom:bingoabend-card
 title: Bingoabend Steuerung
 sonos_entity: media_player.sonos_wohnzimmer
-linein_source: "Line-In"          # Exakter Quellenname in Sonos
-music_source: "Spotify"           # Optional: Quelle für Musik-Modus
-max_number: 75                    # 75 für US-Bingo, 90 für deutsches Bingo
+linein_source: "Line-in"       # Exakter Quellenname aus source_list
+music_source: "Spotify"        # Optional: Quelle für Musik-Modus
+```
+
+---
+
+### Nummern-Caller Card
+
+Zieht zufällige Bingo-Zahlen, zeigt den letzten Treffer groß an und listet alle gezogenen Zahlen.
+Optionale TTS-Ansage über Sonos.
+
+```yaml
+type: custom:bingoabend-numbercaller-card
+title: Nummern-Caller
+max_number: 75                 # 75 (B I N G O) oder 90 (europäisch)
+sonos_entity: media_player.sonos_wohnzimmer   # Optional: für TTS
+```
+
+---
+
+### Soundboard Card
+
+Konfigurierbares Grid mit Soundeffekten. Jeder Sound wird per `announce: true` über Sonos abgespielt –
+der Player kehrt danach automatisch zur vorherigen Wiedergabe zurück.
+
+```yaml
+type: custom:bingoabend-soundboard-card
+title: Soundboard
+sonos_entity: media_player.sonos_wohnzimmer
+# base_url: "http://192.168.1.x:8123"  # Optional, falls window.location.origin nicht stimmt
 sounds:
   - name: "Fanfare"
     url: "/local/sounds/fanfare.mp3"
     icon: "mdi:trumpet"
-    color: "#f59e0b"
   - name: "Trommelwirbel"
     url: "/local/sounds/drumroll.mp3"
     icon: "mdi:music-note"
-    color: "#10b981"
   - name: "Applaus"
     url: "/local/sounds/applause.mp3"
     icon: "mdi:hand-clap"
-    color: "#6c3cff"
   - name: "Jingle"
     url: "/local/sounds/jingle.mp3"
     icon: "mdi:bell-ring"
-    color: "#ef4444"
 ```
 
 ---
@@ -91,7 +115,9 @@ Falls unklar, wie die Line-In Quelle in HA heißt:
 1. **Entwicklerwerkzeuge** → **Zustände**
 2. Sonos-Entität suchen
 3. In den Attributen `source_list` prüfen – z.B.:
-   `["Line-In", "TV", "Spotify", "Airplay"]`
+   `["Line-in", "TV", "Spotify", "Airplay"]`
+
+> Achtung: Groß-/Kleinschreibung beachten – `"Line-in"` ≠ `"Line-In"`
 
 ---
 
@@ -108,7 +134,7 @@ custom_components/bingoabend/
 ├── translations/
 │   └── de.json          # Deutsche Übersetzungen
 └── www/
-    └── bingoabend-card.js  # Lovelace Custom Card
+    └── bingoabend-card.js  # Alle drei Lovelace Custom Cards
 ```
 
 ---
@@ -127,7 +153,7 @@ Die Integration nutzt Standard-HA-Dienste:
 
 | Dienst | Zweck |
 |--------|-------|
-| `media_player.select_source` | Quelle wechseln |
-| `media_player.play_media` | Sound abspielen |
+| `media_player.select_source` | Quelle wechseln (Line-In / Musik) |
+| `media_player.play_media` | Sound abspielen (`announce: true`) |
 | `media_player.volume_set` | Lautstärke setzen |
 | `tts.cloud_say` / `tts.google_translate_say` | Zahlen ansagen (optional) |

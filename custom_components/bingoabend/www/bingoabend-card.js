@@ -21,14 +21,18 @@ const CARD_VERSION = "1.4.0";
 
 const STYLES = `
   :host {
-    display: block;
+    display: flex;
+    flex-direction: column;
     container-type: inline-size;
     container-name: bingo;
-    /* Clip content to the grid cell – don't visually overflow */
     overflow: hidden;
   }
 
   ha-card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
     padding: 0;
     overflow: hidden;
   }
@@ -59,10 +63,13 @@ const STYLES = `
 
   /* ── Sections wrapper ── */
   .sections {
+    flex: 1;
+    min-height: 0;
     padding: 8px 16px 16px;
     display: flex;
     flex-direction: column;
     gap: 12px;
+    overflow: hidden;
   }
 
   .section-label {
@@ -532,12 +539,17 @@ customElements.define('bingoabend-card-editor', BingoabendCardEditor);
 
 const CALLER_STYLES = `
   :host {
-    display: block;
+    display: flex;
+    flex-direction: column;
     container-type: inline-size;
     container-name: caller;
     overflow: hidden;
   }
   ha-card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
     padding: 0;
     overflow: hidden;
   }
@@ -565,10 +577,13 @@ const CALLER_STYLES = `
     text-overflow: ellipsis;
   }
   .body {
+    flex: 1;
+    min-height: 0;
     padding: 8px 16px 16px;
     display: flex;
     flex-direction: column;
     gap: 10px;
+    overflow: hidden;
   }
   .number-display {
     text-align: center;
@@ -639,10 +654,13 @@ const CALLER_STYLES = `
     color: var(--primary-color);
   }
   .called-numbers {
+    flex: 1;
+    min-height: 0;
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
     align-content: flex-start;
+    overflow: hidden;
   }
   .called-number {
     width: clamp(26px, 7cqi, 34px);
@@ -887,12 +905,20 @@ customElements.define('bingoabend-numbercaller-card-editor', BingoabendNumberCal
 
 const SOUNDBOARD_STYLES = `
   :host {
-    display: block;
+    display: flex;
+    flex-direction: column;
     container-type: inline-size;
     container-name: soundboard;
     overflow: hidden;
   }
-  ha-card { padding: 0; overflow: hidden; }
+  ha-card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 0;
+    overflow: hidden;
+  }
 
   .card-header {
     display: flex;
@@ -917,7 +943,12 @@ const SOUNDBOARD_STYLES = `
     text-overflow: ellipsis;
   }
 
-  .body { padding: 8px 16px 16px; }
+  .body {
+    flex: 1;
+    min-height: 0;
+    padding: 8px 16px 16px;
+    overflow: hidden;
+  }
 
   .sound-grid {
     display: grid;
