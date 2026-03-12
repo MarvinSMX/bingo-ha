@@ -15,7 +15,7 @@
  *       icon: "mdi:trumpet"
  */
 
-const CARD_VERSION = "1.2.1";
+const CARD_VERSION = "1.2.3";
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
@@ -443,11 +443,19 @@ class BingoabendCard extends HTMLElement {
     }
   }
 
-  // Legacy grid layout
-  getCardSize() { return 6; }
+  // Legacy masonry layout: 1 unit ≈ 50 px
+  getCardSize() { return 8; }
 
-  // New HA Sections layout
-  getLayoutSize() { return { columns: 1, rows: 6 }; }
+  // Sections layout (HA 2024.3+): 12-column grid, 1 row ≈ 56 px
+  // Default: half-width (6/12), tall enough for all sections
+  getGridOptions() {
+    return {
+      columns: 6,
+      rows: 8,
+      min_columns: 3,
+      min_rows: 5,
+    };
+  }
 
   // ─── Render ──────────────────────────────────────────────────────────────
 
@@ -691,9 +699,18 @@ class BingoabendCard extends HTMLElement {
   _playSound(idx) {
     const sound = this._config.sounds?.[idx];
     if (!sound?.url) return;
+
+    // Convert /local/... paths to media-source:// URIs so HA resolves them
+    // server-side via the internal_url — Sonos can then reach the file on LAN
+    // without needing access to the external hostname.
+    let url = sound.url;
+    if (url.startsWith('/local/')) {
+      url = 'media-source://media-source' + url;
+    }
+
     this._callService('media_player', 'play_media', {
       entity_id: this._config.sonos_entity,
-      media_content_id: sound.url,
+      media_content_id: url,
       media_content_type: 'music',
     });
   }

@@ -9,7 +9,12 @@
       "Bash(sed -i 's/const CARD_VERSION = \"\"1.0.0\"\"/const CARD_VERSION = \"\"1.0.2\"\"/' \"$f\")",
       "Bash(done)",
       "Bash(__NEW_LINE_c4d05f82f6778559__ grep:*)",
-      "Bash(__NEW_LINE_2631fdcedb2c6770__ git:*)"
+      "Bash(__NEW_LINE_2631fdcedb2c6770__ git:*)",
+      "WebFetch(domain:developers.home-assistant.io)",
+      "WebFetch(domain:www.home-assistant.io)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ]
   }
 }
