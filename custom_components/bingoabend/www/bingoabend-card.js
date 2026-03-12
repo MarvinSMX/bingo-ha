@@ -20,7 +20,7 @@
  *       color: "#10b981"
  */
 
-const CARD_VERSION = "1.0.0";
+const CARD_VERSION = "1.0.2";
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
@@ -792,8 +792,8 @@ class BingoabendCard extends HTMLElement {
     const isMicActive = currentSource === lineinSource;
 
     // Update mic button
-    const btnMic = this.shadowRoot.getElementById('btn-mic');
-    const btnMusic = this.shadowRoot.getElementById('btn-music');
+    const btnMic = this.shadowRoot.querySelector('#btn-mic');
+    const btnMusic = this.shadowRoot.querySelector('#btn-music');
     if (btnMic) {
       btnMic.className = `source-btn ${isMicActive ? 'active-mic' : ''}`;
     }
@@ -809,8 +809,8 @@ class BingoabendCard extends HTMLElement {
     }
 
     // Update volume
-    const volumeSlider = this.shadowRoot.getElementById('volume-slider');
-    const volumeValue = this.shadowRoot.getElementById('volume-value');
+    const volumeSlider = this.shadowRoot.querySelector('#volume-slider');
+    const volumeValue = this.shadowRoot.querySelector('#volume-value');
     if (volumeSlider && !volumeSlider.matches(':active')) {
       const volume = state?.attributes?.volume_level ?? 0.5;
       const volumePct = Math.round(volume * 100);
@@ -830,7 +830,7 @@ class BingoabendCard extends HTMLElement {
     const volSlider = card.querySelector('#volume-slider');
     if (volSlider) {
       volSlider.addEventListener('input', (e) => {
-        const valEl = this.shadowRoot.getElementById('volume-value');
+        const valEl = this.shadowRoot.querySelector('#volume-value');
         if (valEl) valEl.textContent = `${e.target.value}%`;
       });
       volSlider.addEventListener('change', (e) => {
@@ -950,7 +950,7 @@ class BingoabendCard extends HTMLElement {
 
   _toggleTts() {
     this._ttsEnabled = !this._ttsEnabled;
-    const btn = this.shadowRoot.getElementById('btn-tts');
+    const btn = this.shadowRoot.querySelector('#btn-tts');
     if (btn) {
       btn.classList.toggle('active', this._ttsEnabled);
       btn.title = this._ttsEnabled ? 'TTS aktiv – klicken zum Deaktivieren' : 'TTS aktivieren';
