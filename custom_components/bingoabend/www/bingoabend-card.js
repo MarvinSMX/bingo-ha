@@ -15,21 +15,26 @@
  *       icon: "mdi:trumpet"
  */
 
-const CARD_VERSION = "1.2.5";
+const CARD_VERSION = "1.2.6";
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
 const STYLES = `
   :host {
     display: block;
-    /* Enable container queries scoped to this card */
     container-type: inline-size;
     container-name: bingo;
+    /* Fill the grid cell in Sections layout; auto in masonry */
+    height: 100%;
   }
 
   ha-card {
     padding: 0;
     overflow: hidden;
+    /* Fill :host and allow internal scrolling */
+    height: 100%;
+    display: flex;
+    flex-direction: column;
   }
 
   /* ── Header ── */
@@ -62,6 +67,12 @@ const STYLES = `
     display: flex;
     flex-direction: column;
     gap: 12px;
+    /* Grow to fill ha-card and scroll if content overflows */
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--divider-color) transparent;
   }
 
   .section-label {
