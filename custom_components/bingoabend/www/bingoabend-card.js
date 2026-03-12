@@ -15,7 +15,7 @@
  *       icon: "mdi:trumpet"
  */
 
-const CARD_VERSION = "1.2.3";
+const CARD_VERSION = "1.2.4";
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
@@ -700,12 +700,15 @@ class BingoabendCard extends HTMLElement {
     const sound = this._config.sounds?.[idx];
     if (!sound?.url) return;
 
-    // Convert /local/... paths to media-source:// URIs so HA resolves them
-    // server-side via the internal_url — Sonos can then reach the file on LAN
-    // without needing access to the external hostname.
+    // Sonos fetches the file directly via UPnP and needs:
+    //   1. An absolute URL  (relative /local/... won't work)
+    //   2. A resolvable MIME type (media-source:// causes UPnP error 714)
+    // Build the absolute URL from the configured base_url or the browser origin.
+    // The browser origin works when Sonos and HA are on the same LAN segment.
     let url = sound.url;
-    if (url.startsWith('/local/')) {
-      url = 'media-source://media-source' + url;
+    if (url.startsWith('/')) {
+      const base = (this._config.base_url || window.location.origin).replace(/\/$/, '');
+      url = base + url;
     }
 
     this._callService('media_player', 'play_media', {
@@ -846,6 +849,11 @@ const MAIN_SCHEMA = [
       { value: 75, label: '75 Zahlen  (B I N G O)' },
       { value: 90, label: '90 Zahlen  (europäisch)' },
     ] } },
+  },
+  {
+    name: 'base_url',
+    label: 'HA-URL für Sonos (optional, z.B. http://192.168.1.100:8123)',
+    selector: { text: {} },
   },
 ];
 
