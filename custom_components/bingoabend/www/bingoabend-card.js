@@ -355,6 +355,8 @@ class BingoabendCard extends HTMLElement {
     this._calledNumbers = [];
     this._currentNumber = null;
     this._ttsEnabled = false;
+    this._rendered = false;
+    this._lastEntityMissing = null;
   }
 
   static getStubConfig() {
@@ -382,14 +384,23 @@ class BingoabendCard extends HTMLElement {
     const oldHass = this._hass;
     this._hass = hass;
 
-    // First render once hass is available
-    if (!this.shadowRoot.querySelector('ha-card')) {
+    if (!this._rendered) {
       this._render();
       return;
     }
 
     const entity = this._config?.sonos_entity;
-    if (entity && oldHass?.states[entity] !== hass.states[entity]) {
+    if (!entity) return;
+
+    const entityMissing = !hass.states[entity];
+
+    // If entity-missing state changed, full re-render to show/hide error
+    if (entityMissing !== this._lastEntityMissing) {
+      this._render();
+      return;
+    }
+
+    if (oldHass?.states[entity] !== hass.states[entity]) {
       this._updateAudioSection();
     }
   }
@@ -407,9 +418,15 @@ class BingoabendCard extends HTMLElement {
     const root = document.createElement('ha-card');
     root.innerHTML = this._buildHTML();
 
+    // Track entity-missing state at render time
+    if (this._hass) {
+      this._lastEntityMissing = !this._hass.states[this._config.sonos_entity];
+    }
+
     while (this.shadowRoot.firstChild) this.shadowRoot.removeChild(this.shadowRoot.firstChild);
     this.shadowRoot.appendChild(style);
     this.shadowRoot.appendChild(root);
+    this._rendered = true;
 
     this._attachListeners(root);
   }
