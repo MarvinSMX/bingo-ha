@@ -359,6 +359,10 @@ class BingoabendCard extends HTMLElement {
     this._lastEntityMissing = null;
   }
 
+  static getConfigElement() {
+    return document.createElement('bingoabend-card-editor');
+  }
+
   static getStubConfig() {
     return {
       sonos_entity: 'media_player.sonos_wohnzimmer',
@@ -725,6 +729,199 @@ class BingoabendCard extends HTMLElement {
 }
 
 customElements.define('bingoabend-card', BingoabendCard);
+
+// ─── Visual Editor ────────────────────────────────────────────────────────────
+
+const EDITOR_STYLES = `
+  :host { display: block; }
+  .editor { display: flex; flex-direction: column; gap: 16px; padding: 16px; }
+  ha-form { display: block; }
+
+  .sounds-section { display: flex; flex-direction: column; gap: 8px; }
+  .sounds-header {
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 11px; font-weight: 500; letter-spacing: 0.6px;
+    text-transform: uppercase; color: var(--secondary-text-color);
+  }
+  .sounds-add {
+    background: none; border: 1px solid var(--primary-color);
+    color: var(--primary-color); border-radius: 8px;
+    padding: 4px 10px; cursor: pointer; font-size: 12px; font-weight: 500;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .sounds-add ha-icon { --mdc-icon-size: 14px; }
+  .sounds-add:hover { background: rgba(var(--rgb-primary-color,3,169,244),0.1); }
+
+  .sound-row {
+    display: grid; grid-template-columns: 1fr 1fr auto auto; gap: 6px;
+    align-items: center; padding: 8px; border-radius: 8px;
+    border: 1px solid var(--divider-color);
+    background: var(--secondary-background-color, var(--primary-background-color));
+  }
+  .sound-row ha-textfield { display: block; }
+  .sound-icon-preview {
+    color: var(--primary-color);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+  }
+  .sound-icon-preview ha-icon { --mdc-icon-size: 22px; }
+  .sound-remove {
+    background: none; border: none; cursor: pointer;
+    color: var(--error-color, #d32f2f); padding: 4px;
+    display: flex; align-items: center; border-radius: 4px;
+  }
+  .sound-remove:hover { background: rgba(211,47,47,0.1); }
+  .sound-remove ha-icon { --mdc-icon-size: 18px; }
+  .sound-row-full { grid-column: 1 / -1; }
+
+  .icon-hint {
+    font-size: 11px; color: var(--secondary-text-color);
+    padding: 0 4px;
+  }
+`;
+
+const MAIN_SCHEMA = [
+  { name: 'title',         label: 'Kartentitel',              selector: { text: {} } },
+  { name: 'sonos_entity',  label: 'Sonos Media Player',       selector: { entity: { domain: 'media_player' } } },
+  { name: 'linein_source', label: 'Line-In Quellenname',      selector: { text: {} } },
+  { name: 'music_source',  label: 'Musik-Quelle (optional)',  selector: { text: {} } },
+  {
+    name: 'max_number', label: 'Bingo-Variante',
+    selector: { select: { mode: 'list', options: [
+      { value: 75, label: '75 Zahlen  (B I N G O)' },
+      { value: 90, label: '90 Zahlen  (europäisch)' },
+    ] } },
+  },
+];
+
+class BingoabendCardEditor extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this._config = {};
+  }
+
+  setConfig(config) {
+    this._config = { title: 'Bingoabend', linein_source: 'Line-In', max_number: 75, sounds: [], ...config };
+    this._render();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    const form = this.shadowRoot.querySelector('ha-form');
+    if (form) form.hass = hass;
+  }
+
+  _render() {
+    const style = document.createElement('style');
+    style.textContent = EDITOR_STYLES;
+
+    const editor = document.createElement('div');
+    editor.className = 'editor';
+
+    // ── Main form via ha-form ──
+    const form = document.createElement('ha-form');
+    form.hass = this._hass;
+    form.data = this._config;
+    form.schema = MAIN_SCHEMA;
+    form.computeLabel = (s) => s.label;
+    form.addEventListener('value-changed', (ev) => {
+      this._config = { ...this._config, ...ev.detail.value };
+      this._dispatchChange();
+    });
+    editor.appendChild(form);
+
+    // ── Sounds list ──
+    const soundsSection = this._buildSoundsSection();
+    editor.appendChild(soundsSection);
+
+    while (this.shadowRoot.firstChild) this.shadowRoot.removeChild(this.shadowRoot.firstChild);
+    this.shadowRoot.appendChild(style);
+    this.shadowRoot.appendChild(editor);
+  }
+
+  _buildSoundsSection() {
+    const section = document.createElement('div');
+    section.className = 'sounds-section';
+
+    const header = document.createElement('div');
+    header.className = 'sounds-header';
+    header.innerHTML = `<span>Soundboard</span>`;
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'sounds-add';
+    addBtn.innerHTML = `<ha-icon icon="mdi:plus"></ha-icon> Sound hinzufügen`;
+    addBtn.addEventListener('click', () => {
+      this._config = {
+        ...this._config,
+        sounds: [...(this._config.sounds || []), { name: '', url: '', icon: 'mdi:music-note' }],
+      };
+      this._dispatchChange();
+      this._render();
+    });
+    header.appendChild(addBtn);
+    section.appendChild(header);
+
+    (this._config.sounds || []).forEach((sound, idx) => {
+      section.appendChild(this._buildSoundRow(sound, idx));
+    });
+
+    return section;
+  }
+
+  _buildSoundRow(sound, idx) {
+    const row = document.createElement('div');
+    row.className = 'sound-row';
+
+    const mkField = (label, value, field, fullWidth) => {
+      const tf = document.createElement('ha-textfield');
+      tf.label = label;
+      tf.value = value || '';
+      if (fullWidth) tf.className = 'sound-row-full';
+      tf.style.cssText = 'display:block;';
+      tf.addEventListener('change', (e) => {
+        const sounds = [...(this._config.sounds || [])];
+        sounds[idx] = { ...sounds[idx], [field]: e.target.value };
+        this._config = { ...this._config, sounds };
+        this._dispatchChange();
+      });
+      return tf;
+    };
+
+    row.appendChild(mkField('Name', sound.name, 'name'));
+    row.appendChild(mkField('MDI Icon', sound.icon, 'icon'));
+
+    const iconPreview = document.createElement('div');
+    iconPreview.className = 'sound-icon-preview';
+    iconPreview.title = 'Vorschau';
+    iconPreview.innerHTML = `<ha-icon icon="${sound.icon || 'mdi:music-note'}"></ha-icon>`;
+    row.appendChild(iconPreview);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'sound-remove';
+    removeBtn.title = 'Entfernen';
+    removeBtn.innerHTML = `<ha-icon icon="mdi:delete"></ha-icon>`;
+    removeBtn.addEventListener('click', () => {
+      const sounds = [...(this._config.sounds || [])];
+      sounds.splice(idx, 1);
+      this._config = { ...this._config, sounds };
+      this._dispatchChange();
+      this._render();
+    });
+    row.appendChild(removeBtn);
+
+    const urlField = mkField('Sound URL  (z.B. /local/sounds/fanfare.mp3)', sound.url, 'url', true);
+    row.appendChild(urlField);
+
+    return row;
+  }
+
+  _dispatchChange() {
+    this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config }, bubbles: true, composed: true }));
+  }
+}
+
+customElements.define('bingoabend-card-editor', BingoabendCardEditor);
 
 window.customCards = window.customCards || [];
 window.customCards.push({
