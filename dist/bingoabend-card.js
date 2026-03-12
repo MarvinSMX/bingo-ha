@@ -15,7 +15,7 @@
  *       icon: "mdi:trumpet"
  */
 
-const CARD_VERSION = "1.2.0";
+const CARD_VERSION = "1.2.1";
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
@@ -30,9 +30,6 @@ const STYLES = `
   ha-card {
     padding: 0;
     overflow: hidden;
-    /* Inherit HA card sizing properly */
-    height: 100%;
-    box-sizing: border-box;
   }
 
   /* ── Header ── */
@@ -40,7 +37,7 @@ const STYLES = `
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: clamp(12px, 3%, 20px) clamp(12px, 4%, 24px) 0;
+    padding: 16px 16px 0;
   }
   .card-header ha-icon {
     color: var(--primary-color);
@@ -61,10 +58,10 @@ const STYLES = `
 
   /* ── Sections wrapper ── */
   .sections {
-    padding: 8px clamp(10px, 4%, 20px) clamp(12px, 3%, 20px);
+    padding: 8px 16px 16px;
     display: flex;
     flex-direction: column;
-    gap: clamp(10px, 2%, 16px);
+    gap: 12px;
   }
 
   .section-label {
@@ -225,24 +222,24 @@ const STYLES = `
   /* ── Number Caller ── */
   .number-display {
     text-align: center;
-    padding: 4px 0;
+    padding: 2px 0;
   }
   .number-letter {
-    font-size: clamp(11px, 3cqi, 14px);
+    font-size: 12px;
     font-weight: 500;
     color: var(--secondary-text-color);
     letter-spacing: 2px;
-    margin-bottom: 2px;
+    margin-bottom: 0;
   }
   .number-big {
-    font-size: clamp(40px, 14cqi, 72px);
+    font-size: clamp(36px, 12cqi, 56px);
     font-weight: 700;
     line-height: 1;
     color: var(--primary-color);
-    letter-spacing: -2px;
+    letter-spacing: -1px;
   }
   .number-placeholder {
-    font-size: clamp(32px, 10cqi, 52px);
+    font-size: clamp(28px, 8cqi, 44px);
     font-weight: 300;
     color: var(--disabled-color, var(--divider-color));
     line-height: 1.2;
@@ -298,8 +295,8 @@ const STYLES = `
   .called-numbers {
     display: flex;
     flex-wrap: wrap;
-    gap: 4px;
-    max-height: 108px;
+    gap: 3px;
+    max-height: 88px;
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: var(--divider-color) transparent;
@@ -350,12 +347,11 @@ const STYLES = `
     .called-numbers { max-height: 80px; }
   }
 
-  /* ── Container query: wide card (2+ grid columns) ── */
-  @container bingo (min-width: 500px) {
-    .sections { flex-direction: row; flex-wrap: wrap; align-items: flex-start; }
-    .sections > * { flex: 1 1 220px; }
-    .sections > hr { flex: 0 0 100%; margin: 0; height: 1px; }
-    .number-display { padding: 0; }
+  /* ── Container query: wide card ── */
+  @container bingo (min-width: 480px) {
+    .source-btn { flex-direction: row; padding: 10px 16px; gap: 8px; }
+    .sound-grid { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); }
+    .number-big { font-size: clamp(40px, 10cqi, 64px); }
   }
 `;
 
