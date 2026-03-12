@@ -15,7 +15,7 @@
  *       icon: "mdi:trumpet"
  */
 
-const CARD_VERSION = "1.2.6";
+const CARD_VERSION = "1.3.0";
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
@@ -230,139 +230,16 @@ const STYLES = `
     grid-column: 1 / -1;
   }
 
-  /* ── Number Caller ── */
-  .number-display {
-    text-align: center;
-    padding: 2px 0;
-  }
-  .number-letter {
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--secondary-text-color);
-    letter-spacing: 2px;
-    margin-bottom: 0;
-  }
-  .number-big {
-    font-size: clamp(36px, 12cqi, 56px);
-    font-weight: 700;
-    line-height: 1;
-    color: var(--primary-color);
-    letter-spacing: -1px;
-  }
-  .number-placeholder {
-    font-size: clamp(28px, 8cqi, 44px);
-    font-weight: 300;
-    color: var(--disabled-color, var(--divider-color));
-    line-height: 1.2;
-  }
-
-  .caller-controls {
-    display: flex;
-    gap: 6px;
-    margin: 8px 0 6px;
-    flex-wrap: wrap;
-  }
-  .caller-btn {
-    flex: 1;
-    min-width: 44px;
-    padding: clamp(8px, 2%, 12px) 6px;
-    border-radius: var(--ha-card-border-radius, 12px);
-    border: 1px solid var(--divider-color);
-    background: var(--secondary-background-color, var(--primary-background-color));
-    cursor: pointer;
-    font-size: clamp(11px, 2.5cqi, 13px);
-    font-weight: 500;
-    font-family: inherit;
-    color: var(--primary-text-color);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    transition: background 0.15s;
-    white-space: nowrap;
-  }
-  .caller-btn ha-icon { --mdc-icon-size: 16px; flex-shrink: 0; }
-  .caller-btn:hover { background: var(--primary-background-color); }
-  .caller-btn:active { opacity: 0.7; }
-  .caller-btn.draw {
-    background: var(--primary-color);
-    border-color: var(--primary-color);
-    color: var(--text-primary-color, white);
-    flex: 2;
-  }
-  .caller-btn.draw:hover { opacity: 0.9; }
-  .caller-btn.draw:disabled {
-    background: var(--disabled-color, var(--divider-color));
-    border-color: var(--disabled-color, var(--divider-color));
-    cursor: not-allowed;
-    opacity: 0.6;
-  }
-  .caller-btn.tts.active {
-    background: rgba(var(--rgb-primary-color, 3,169,244), 0.15);
-    border-color: var(--primary-color);
-    color: var(--primary-color);
-  }
-
-  .called-numbers {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 3px;
-    max-height: 88px;
-    overflow-y: auto;
-    scrollbar-width: thin;
-    scrollbar-color: var(--divider-color) transparent;
-  }
-  .called-number {
-    width: clamp(22px, 6cqi, 28px);
-    height: clamp(22px, 6cqi, 28px);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: clamp(8px, 2.5cqi, 11px);
-    font-weight: 600;
-    background: var(--secondary-background-color, var(--primary-background-color));
-    border: 1px solid var(--divider-color);
-    color: var(--secondary-text-color);
-    flex-shrink: 0;
-    cursor: default;
-  }
-  .called-number.latest {
-    background: var(--primary-color);
-    border-color: var(--primary-color);
-    color: var(--text-primary-color, white);
-    width: clamp(28px, 8cqi, 34px);
-    height: clamp(28px, 8cqi, 34px);
-    font-size: clamp(10px, 3cqi, 13px);
-    font-weight: 700;
-  }
-  .called-count {
-    font-size: 11px;
-    color: var(--secondary-text-color);
-    text-align: right;
-    margin-top: 4px;
-  }
-
-  /* ── Bingo column tints ── */
-  .cn-b { border-color: #3b82f6; color: #3b82f6; }
-  .cn-i { border-color: #ef4444; color: #ef4444; }
-  .cn-n { border-color: #f59e0b; color: #f59e0b; }
-  .cn-g { border-color: #10b981; color: #10b981; }
-  .cn-o { border-color: #8b5cf6; color: #8b5cf6; }
-
   /* ── Container query: very narrow card (e.g. sidebar / 1/3 grid) ── */
   @container bingo (max-width: 280px) {
     .card-header-title { font-size: 16px; }
     .source-btn span { display: none; }
-    .caller-btn.draw span { display: none; }
-    .called-numbers { max-height: 80px; }
   }
 
   /* ── Container query: wide card ── */
   @container bingo (min-width: 480px) {
     .source-btn { flex-direction: row; padding: 10px 16px; gap: 8px; }
     .sound-grid { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); }
-    .number-big { font-size: clamp(40px, 10cqi, 64px); }
   }
 `;
 
@@ -397,9 +274,6 @@ class BingoabendCard extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
-    this._calledNumbers = [];
-    this._currentNumber = null;
-    this._ttsEnabled = false;
     this._rendered = false;
     this._lastEntityMissing = null;
   }
@@ -412,7 +286,6 @@ class BingoabendCard extends HTMLElement {
     return {
       sonos_entity: 'media_player.sonos_wohnzimmer',
       linein_source: 'Line-In',
-      max_number: 75,
       sounds: [],
     };
   }
@@ -422,7 +295,6 @@ class BingoabendCard extends HTMLElement {
     this._config = {
       title: 'Bingoabend',
       linein_source: 'Line-In',
-      max_number: 75,
       sounds: [],
       ...config,
     };
@@ -455,16 +327,15 @@ class BingoabendCard extends HTMLElement {
   }
 
   // Legacy masonry layout: 1 unit ≈ 50 px
-  getCardSize() { return 8; }
+  getCardSize() { return 5; }
 
   // Sections layout (HA 2024.3+): 12-column grid, 1 row ≈ 56 px
-  // Default: half-width (6/12), tall enough for all sections
   getGridOptions() {
     return {
       columns: 6,
-      rows: 8,
+      rows: 5,
       min_columns: 3,
-      min_rows: 5,
+      min_rows: 4,
     };
   }
 
@@ -504,8 +375,6 @@ class BingoabendCard extends HTMLElement {
         ${this._buildVolumeSection()}
         <hr>
         ${this._buildSoundboardSection()}
-        <hr>
-        ${this._buildNumberCallerSection()}
       </div>
     `;
   }
@@ -588,45 +457,6 @@ class BingoabendCard extends HTMLElement {
     `;
   }
 
-  _buildNumberCallerSection() {
-    const maxNum = this._config.max_number || 75;
-    const remaining = maxNum - this._calledNumbers.length;
-    const allCalled = remaining === 0;
-
-    const numDisplay = this._currentNumber
-      ? `<div class="number-letter">${getBingoLetter(this._currentNumber, maxNum)}</div>
-         <div class="number-big">${this._currentNumber}</div>`
-      : `<div class="number-placeholder">–</div>`;
-
-    const calledHtml = this._calledNumbers.length > 0
-      ? [...this._calledNumbers].reverse().map((n, i) => {
-          const cls = getBingoCssClass(n, maxNum) + (i === 0 ? ' latest' : '');
-          return `<div class="called-number ${cls}" title="${n}">${n}</div>`;
-        }).join('')
-      : `<span style="font-size:12px;color:var(--secondary-text-color)">Noch keine Zahlen gezogen</span>`;
-
-    return `
-      <div id="caller-section">
-        <div class="section-label">Nummern-Caller (1–${maxNum})</div>
-        <div class="number-display">${numDisplay}</div>
-        <div class="caller-controls">
-          <button class="caller-btn draw" id="btn-draw" ${allCalled ? 'disabled' : ''}>
-            <ha-icon icon="mdi:dice-multiple"></ha-icon>
-            ${allCalled ? 'Alle gezogen' : `Ziehen (${remaining})`}
-          </button>
-          <button class="caller-btn tts ${this._ttsEnabled ? 'active' : ''}" id="btn-tts" title="TTS ${this._ttsEnabled ? 'aktiv' : 'inaktiv'}">
-            <ha-icon icon="mdi:text-to-speech"></ha-icon>
-          </button>
-          <button class="caller-btn" id="btn-reset" title="Zurücksetzen">
-            <ha-icon icon="mdi:restart"></ha-icon>
-          </button>
-        </div>
-        <div class="called-numbers">${calledHtml}</div>
-        <div class="called-count">${this._calledNumbers.length} / ${maxNum}</div>
-      </div>
-    `;
-  }
-
   // ─── Partial Updates ─────────────────────────────────────────────────────
 
   _updateAudioSection() {
@@ -674,10 +504,6 @@ class BingoabendCard extends HTMLElement {
     root.querySelectorAll('.sound-btn[data-idx]').forEach((btn) => {
       btn.addEventListener('click', () => this._playSound(parseInt(btn.dataset.idx)));
     });
-
-    root.querySelector('#btn-draw')?.addEventListener('click',  () => this._drawNumber());
-    root.querySelector('#btn-reset')?.addEventListener('click', () => this._resetGame());
-    root.querySelector('#btn-tts')?.addEventListener('click',   () => this._toggleTts());
   }
 
   // ─── Actions ─────────────────────────────────────────────────────────────
@@ -729,61 +555,6 @@ class BingoabendCard extends HTMLElement {
       media_content_type: 'music',
       extra: { announce: true },
     });
-  }
-
-  _drawNumber() {
-    const maxNum = this._config.max_number || 75;
-    const pool = [];
-    for (let i = 1; i <= maxNum; i++) {
-      if (!this._calledNumbers.includes(i)) pool.push(i);
-    }
-    if (pool.length === 0) return;
-
-    const num = pool[Math.floor(Math.random() * pool.length)];
-    this._calledNumbers.push(num);
-    this._currentNumber = num;
-
-    // Re-render caller section only
-    const callerSection = this.shadowRoot.querySelector('#caller-section');
-    if (callerSection) {
-      const tmp = document.createElement('div');
-      tmp.innerHTML = this._buildNumberCallerSection();
-      const newSection = tmp.firstElementChild;
-      callerSection.replaceWith(newSection);
-      newSection.querySelector('#btn-draw')?.addEventListener('click',  () => this._drawNumber());
-      newSection.querySelector('#btn-reset')?.addEventListener('click', () => this._resetGame());
-      newSection.querySelector('#btn-tts')?.addEventListener('click',   () => this._toggleTts());
-    }
-
-    if (this._ttsEnabled) {
-      const letter = getBingoLetter(num, maxNum);
-      const msg = maxNum <= 75 ? `${letter}, ${num}` : `Nummer ${num}`;
-      this._callService('tts', 'cloud_say', {
-        entity_id: this._config.sonos_entity,
-        message: msg,
-        language: 'de-DE',
-      }).catch(() => this._callService('tts', 'google_translate_say', {
-        entity_id: this._config.sonos_entity,
-        message: msg,
-        language: 'de',
-      }));
-    }
-  }
-
-  _resetGame() {
-    if (!confirm(`Spiel zurücksetzen? (${this._calledNumbers.length} Zahlen gelöscht)`)) return;
-    this._calledNumbers = [];
-    this._currentNumber = null;
-    this._render();
-  }
-
-  _toggleTts() {
-    this._ttsEnabled = !this._ttsEnabled;
-    const btn = this.shadowRoot.querySelector('#btn-tts');
-    if (btn) {
-      btn.classList.toggle('active', this._ttsEnabled);
-      btn.title = `TTS ${this._ttsEnabled ? 'aktiv' : 'inaktiv'}`;
-    }
   }
 
   // ─── Util ────────────────────────────────────────────────────────────────
@@ -856,18 +627,7 @@ const MAIN_SCHEMA = [
   { name: 'sonos_entity',  label: 'Sonos Media Player',       selector: { entity: { domain: 'media_player' } } },
   { name: 'linein_source', label: 'Line-In Quellenname',      selector: { text: {} } },
   { name: 'music_source',  label: 'Musik-Quelle (optional)',  selector: { text: {} } },
-  {
-    name: 'max_number', label: 'Bingo-Variante',
-    selector: { select: { mode: 'list', options: [
-      { value: 75, label: '75 Zahlen  (B I N G O)' },
-      { value: 90, label: '90 Zahlen  (europäisch)' },
-    ] } },
-  },
-  {
-    name: 'base_url',
-    label: 'HA-URL für Sonos (optional, z.B. http://192.168.1.100:8123)',
-    selector: { text: {} },
-  },
+  { name: 'base_url',      label: 'HA-URL für Sonos (optional, z.B. http://192.168.1.100:8123)', selector: { text: {} } },
 ];
 
 class BingoabendCardEditor extends HTMLElement {
@@ -999,13 +759,390 @@ class BingoabendCardEditor extends HTMLElement {
 
 customElements.define('bingoabend-card-editor', BingoabendCardEditor);
 
+// ─── Number Caller Card ───────────────────────────────────────────────────────
+
+const CALLER_STYLES = `
+  :host {
+    display: block;
+    container-type: inline-size;
+    container-name: caller;
+    height: 100%;
+  }
+  ha-card {
+    padding: 0;
+    overflow: hidden;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 16px 0;
+    flex-shrink: 0;
+  }
+  .card-header ha-icon {
+    color: var(--primary-color);
+    --mdc-icon-size: 22px;
+    flex-shrink: 0;
+  }
+  .card-header-title {
+    font-size: var(--ha-card-header-font-size, clamp(18px, 5cqi, 24px));
+    font-weight: var(--ha-card-header-font-weight, normal);
+    color: var(--ha-card-header-color, var(--primary-text-color));
+    flex: 1;
+    line-height: 1.2;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .body {
+    padding: 8px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--divider-color) transparent;
+  }
+  .number-display {
+    text-align: center;
+    padding: 4px 0;
+  }
+  .number-letter {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--secondary-text-color);
+    letter-spacing: 3px;
+  }
+  .number-big {
+    font-size: clamp(48px, 18cqi, 80px);
+    font-weight: 700;
+    line-height: 1;
+    color: var(--primary-color);
+    letter-spacing: -2px;
+  }
+  .number-placeholder {
+    font-size: clamp(40px, 14cqi, 64px);
+    font-weight: 300;
+    color: var(--disabled-color, var(--divider-color));
+    line-height: 1.2;
+  }
+  .caller-controls {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .caller-btn {
+    flex: 1;
+    min-width: 44px;
+    padding: clamp(10px, 2.5%, 14px) 8px;
+    border-radius: var(--ha-card-border-radius, 12px);
+    border: 1px solid var(--divider-color);
+    background: var(--secondary-background-color, var(--primary-background-color));
+    cursor: pointer;
+    font-size: clamp(12px, 3cqi, 14px);
+    font-weight: 500;
+    font-family: inherit;
+    color: var(--primary-text-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    transition: background 0.15s;
+    white-space: nowrap;
+  }
+  .caller-btn ha-icon { --mdc-icon-size: 18px; flex-shrink: 0; }
+  .caller-btn:hover { background: var(--primary-background-color); }
+  .caller-btn:active { opacity: 0.7; }
+  .caller-btn.draw {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: var(--text-primary-color, white);
+    flex: 2;
+  }
+  .caller-btn.draw:hover { opacity: 0.9; }
+  .caller-btn.draw:disabled {
+    background: var(--disabled-color, var(--divider-color));
+    border-color: var(--disabled-color, var(--divider-color));
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+  .caller-btn.tts.active {
+    background: rgba(var(--rgb-primary-color, 3,169,244), 0.15);
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+  }
+  .called-numbers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    flex: 1;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--divider-color) transparent;
+    align-content: flex-start;
+  }
+  .called-number {
+    width: clamp(26px, 7cqi, 34px);
+    height: clamp(26px, 7cqi, 34px);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(9px, 2.5cqi, 12px);
+    font-weight: 600;
+    background: var(--secondary-background-color, var(--primary-background-color));
+    border: 1px solid var(--divider-color);
+    color: var(--secondary-text-color);
+    flex-shrink: 0;
+  }
+  .called-number.latest {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: var(--text-primary-color, white);
+    width: clamp(32px, 9cqi, 40px);
+    height: clamp(32px, 9cqi, 40px);
+    font-size: clamp(11px, 3cqi, 14px);
+    font-weight: 700;
+  }
+  .cn-b { border-color: #3b82f6; color: #3b82f6; }
+  .cn-i { border-color: #ef4444; color: #ef4444; }
+  .cn-n { border-color: #f59e0b; color: #f59e0b; }
+  .cn-g { border-color: #10b981; color: #10b981; }
+  .cn-o { border-color: #8b5cf6; color: #8b5cf6; }
+  .called-count {
+    font-size: 11px;
+    color: var(--secondary-text-color);
+    text-align: right;
+    flex-shrink: 0;
+  }
+  @container caller (max-width: 260px) {
+    .caller-btn span { display: none; }
+  }
+`;
+
+class BingoabendNumberCallerCard extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this._calledNumbers = [];
+    this._currentNumber = null;
+    this._ttsEnabled = false;
+    this._rendered = false;
+  }
+
+  static getConfigElement() {
+    return document.createElement('bingoabend-numbercaller-card-editor');
+  }
+
+  static getStubConfig() {
+    return { title: 'Nummern-Caller', max_number: 75 };
+  }
+
+  setConfig(config) {
+    this._config = { title: 'Nummern-Caller', max_number: 75, ...config };
+    this._render();
+  }
+
+  set hass(hass) { this._hass = hass; }
+
+  getCardSize() { return 6; }
+
+  getGridOptions() {
+    return { columns: 4, rows: 6, min_columns: 3, min_rows: 4 };
+  }
+
+  _render() {
+    if (!this._config) return;
+    const style = document.createElement('style');
+    style.textContent = CALLER_STYLES;
+    const root = document.createElement('ha-card');
+    root.innerHTML = this._buildHTML();
+    while (this.shadowRoot.firstChild) this.shadowRoot.removeChild(this.shadowRoot.firstChild);
+    this.shadowRoot.appendChild(style);
+    this.shadowRoot.appendChild(root);
+    this._rendered = true;
+    this._attachListeners(root);
+  }
+
+  _buildHTML() {
+    const maxNum = this._config.max_number || 75;
+    const remaining = maxNum - this._calledNumbers.length;
+    const allCalled = remaining === 0;
+
+    const numDisplay = this._currentNumber
+      ? `<div class="number-letter">${getBingoLetter(this._currentNumber, maxNum)}</div>
+         <div class="number-big">${this._currentNumber}</div>`
+      : `<div class="number-placeholder">–</div>`;
+
+    const calledHtml = this._calledNumbers.length > 0
+      ? [...this._calledNumbers].reverse().map((n, i) => {
+          const cls = getBingoCssClass(n, maxNum) + (i === 0 ? ' latest' : '');
+          return `<div class="called-number ${cls}" title="${n}">${n}</div>`;
+        }).join('')
+      : `<span style="font-size:12px;color:var(--secondary-text-color)">Noch keine Zahlen gezogen</span>`;
+
+    return `
+      <div class="card-header">
+        <ha-icon icon="mdi:bingo"></ha-icon>
+        <div class="card-header-title">${this._esc(this._config.title)}</div>
+      </div>
+      <div class="body">
+        <div class="number-display">${numDisplay}</div>
+        <div class="caller-controls">
+          <button class="caller-btn draw" id="btn-draw" ${allCalled ? 'disabled' : ''}>
+            <ha-icon icon="mdi:dice-multiple"></ha-icon>
+            <span>${allCalled ? 'Alle gezogen' : `Ziehen (${remaining})`}</span>
+          </button>
+          <button class="caller-btn tts ${this._ttsEnabled ? 'active' : ''}" id="btn-tts"
+                  title="TTS ${this._ttsEnabled ? 'aktiv' : 'inaktiv'}">
+            <ha-icon icon="mdi:text-to-speech"></ha-icon>
+          </button>
+          <button class="caller-btn" id="btn-reset" title="Zurücksetzen">
+            <ha-icon icon="mdi:restart"></ha-icon>
+          </button>
+        </div>
+        <div class="called-numbers">${calledHtml}</div>
+        <div class="called-count">${this._calledNumbers.length} / ${maxNum}</div>
+      </div>
+    `;
+  }
+
+  _attachListeners(root) {
+    root.querySelector('#btn-draw')?.addEventListener('click',  () => this._drawNumber());
+    root.querySelector('#btn-reset')?.addEventListener('click', () => this._resetGame());
+    root.querySelector('#btn-tts')?.addEventListener('click',   () => this._toggleTts());
+  }
+
+  _drawNumber() {
+    const maxNum = this._config.max_number || 75;
+    const pool = [];
+    for (let i = 1; i <= maxNum; i++) {
+      if (!this._calledNumbers.includes(i)) pool.push(i);
+    }
+    if (pool.length === 0) return;
+
+    const num = pool[Math.floor(Math.random() * pool.length)];
+    this._calledNumbers.push(num);
+    this._currentNumber = num;
+    this._render();
+
+    if (this._ttsEnabled && this._hass && this._config.sonos_entity) {
+      const letter = getBingoLetter(num, maxNum);
+      const msg = maxNum <= 75 ? `${letter}, ${num}` : `Nummer ${num}`;
+      this._hass.callService('tts', 'cloud_say', {
+        entity_id: this._config.sonos_entity,
+        message: msg,
+        language: 'de-DE',
+      }).catch(() => this._hass.callService('tts', 'google_translate_say', {
+        entity_id: this._config.sonos_entity,
+        message: msg,
+        language: 'de',
+      }));
+    }
+  }
+
+  _resetGame() {
+    if (!confirm(`Spiel zurücksetzen? (${this._calledNumbers.length} Zahlen gelöscht)`)) return;
+    this._calledNumbers = [];
+    this._currentNumber = null;
+    this._render();
+  }
+
+  _toggleTts() {
+    this._ttsEnabled = !this._ttsEnabled;
+    const btn = this.shadowRoot.querySelector('#btn-tts');
+    if (btn) {
+      btn.classList.toggle('active', this._ttsEnabled);
+      btn.title = `TTS ${this._ttsEnabled ? 'aktiv' : 'inaktiv'}`;
+    }
+  }
+
+  _esc(str) {
+    return String(str ?? '')
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+}
+
+customElements.define('bingoabend-numbercaller-card', BingoabendNumberCallerCard);
+
+// ─── Number Caller Editor ─────────────────────────────────────────────────────
+
+const CALLER_SCHEMA = [
+  { name: 'title',        label: 'Kartentitel',         selector: { text: {} } },
+  {
+    name: 'max_number', label: 'Bingo-Variante',
+    selector: { select: { mode: 'list', options: [
+      { value: 75, label: '75 Zahlen  (B I N G O)' },
+      { value: 90, label: '90 Zahlen  (europäisch)' },
+    ] } },
+  },
+  { name: 'sonos_entity', label: 'Sonos für TTS (optional)', selector: { entity: { domain: 'media_player' } } },
+];
+
+class BingoabendNumberCallerCardEditor extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this._config = {};
+  }
+
+  setConfig(config) {
+    this._config = { title: 'Nummern-Caller', max_number: 75, ...config };
+    this._render();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    const form = this.shadowRoot.querySelector('ha-form');
+    if (form) form.hass = hass;
+  }
+
+  _render() {
+    const style = document.createElement('style');
+    style.textContent = ':host{display:block;} .editor{padding:16px;}';
+    const editor = document.createElement('div');
+    editor.className = 'editor';
+    const form = document.createElement('ha-form');
+    form.hass = this._hass;
+    form.data = this._config;
+    form.schema = CALLER_SCHEMA;
+    form.computeLabel = (s) => s.label;
+    form.addEventListener('value-changed', (ev) => {
+      this._config = { ...this._config, ...ev.detail.value };
+      this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config }, bubbles: true, composed: true }));
+    });
+    editor.appendChild(form);
+    while (this.shadowRoot.firstChild) this.shadowRoot.removeChild(this.shadowRoot.firstChild);
+    this.shadowRoot.appendChild(style);
+    this.shadowRoot.appendChild(editor);
+  }
+}
+
+customElements.define('bingoabend-numbercaller-card-editor', BingoabendNumberCallerCardEditor);
+
+// ─── Registration ─────────────────────────────────────────────────────────────
+
 window.customCards = window.customCards || [];
-window.customCards.push({
-  type: 'bingoabend-card',
-  name: 'Bingoabend Card',
-  description: 'Sonos Line-In/Mikrofon, Soundboard, Nummern-Caller',
-  preview: true,
-});
+window.customCards.push(
+  {
+    type: 'bingoabend-card',
+    name: 'Bingoabend Card',
+    description: 'Sonos Line-In/Mikrofon, Soundboard',
+    preview: true,
+  },
+  {
+    type: 'bingoabend-numbercaller-card',
+    name: 'Bingoabend Nummern-Caller',
+    description: 'Zieht zufällige Bingo-Zahlen mit optionaler TTS-Ansage',
+    preview: true,
+  }
+);
 
 console.info(
   `%c BINGOABEND-CARD %c v${CARD_VERSION} `,
