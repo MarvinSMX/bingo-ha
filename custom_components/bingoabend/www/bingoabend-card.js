@@ -15,46 +15,58 @@
  *       icon: "mdi:trumpet"
  */
 
-const CARD_VERSION = "1.1.0";
+const CARD_VERSION = "1.2.0";
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
 const STYLES = `
   :host {
     display: block;
+    /* Enable container queries scoped to this card */
+    container-type: inline-size;
+    container-name: bingo;
   }
 
   ha-card {
     padding: 0;
     overflow: hidden;
+    /* Inherit HA card sizing properly */
+    height: 100%;
+    box-sizing: border-box;
   }
 
+  /* ── Header ── */
   .card-header {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 16px 16px 0;
+    gap: 10px;
+    padding: clamp(12px, 3%, 20px) clamp(12px, 4%, 24px) 0;
   }
   .card-header ha-icon {
     color: var(--primary-color);
-    --mdc-icon-size: 24px;
+    --mdc-icon-size: 22px;
+    flex-shrink: 0;
   }
   .card-header-title {
-    font-size: var(--ha-card-header-font-size, 24px);
+    font-size: var(--ha-card-header-font-size, clamp(18px, 5cqi, 24px));
     font-weight: var(--ha-card-header-font-weight, normal);
     color: var(--ha-card-header-color, var(--primary-text-color));
     flex: 1;
     line-height: 1.2;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
+  /* ── Sections wrapper ── */
   .sections {
-    padding: 8px 16px 16px;
+    padding: 8px clamp(10px, 4%, 20px) clamp(12px, 3%, 20px);
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: clamp(10px, 2%, 16px);
   }
 
-  /* Section */
   .section-label {
     font-size: 11px;
     font-weight: 500;
@@ -70,14 +82,14 @@ const STYLES = `
     margin: 0;
   }
 
-  /* Source toggle */
+  /* ── Audio source toggle ── */
   .source-toggle {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 8px;
   }
   .source-btn {
-    padding: 12px 8px;
+    padding: clamp(8px, 2%, 14px) 8px;
     border-radius: var(--ha-card-border-radius, 12px);
     border: 1px solid var(--divider-color);
     background: var(--secondary-background-color, var(--primary-background-color));
@@ -85,17 +97,17 @@ const STYLES = `
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
     transition: background 0.15s, border-color 0.15s;
     color: var(--secondary-text-color);
     font-family: inherit;
+    min-width: 0;
   }
-  .source-btn ha-icon {
-    --mdc-icon-size: 28px;
-  }
+  .source-btn ha-icon { --mdc-icon-size: clamp(20px, 6cqi, 28px); }
   .source-btn span {
-    font-size: 12px;
+    font-size: clamp(11px, 3cqi, 13px);
     font-weight: 500;
+    white-space: nowrap;
   }
   .source-btn.active-mic {
     background: rgba(var(--rgb-error-color, 211,47,47), 0.12);
@@ -109,7 +121,7 @@ const STYLES = `
   }
 
   .mic-status {
-    margin-top: 8px;
+    margin-top: 6px;
     font-size: 12px;
     font-weight: 500;
     color: var(--secondary-text-color);
@@ -124,11 +136,11 @@ const STYLES = `
     50% { opacity: 0.5; }
   }
 
-  /* Volume */
+  /* ── Volume ── */
   .volume-row {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
   }
   .volume-row ha-icon {
     color: var(--secondary-text-color);
@@ -137,6 +149,7 @@ const STYLES = `
   }
   input[type=range] {
     flex: 1;
+    min-width: 0;
     -webkit-appearance: none;
     appearance: none;
     height: 4px;
@@ -152,23 +165,25 @@ const STYLES = `
     border-radius: 50%;
     background: var(--primary-color);
     cursor: pointer;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.25);
   }
   .volume-value {
-    min-width: 36px;
+    min-width: 34px;
     text-align: right;
     font-size: 13px;
     color: var(--primary-text-color);
+    flex-shrink: 0;
   }
 
-  /* Soundboard */
+  /* ── Soundboard ── */
   .sound-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
-    gap: 8px;
+    /* Fluid columns: as many as fit, min 64px each */
+    grid-template-columns: repeat(auto-fill, minmax(clamp(60px, 18cqi, 90px), 1fr));
+    gap: 6px;
   }
   .sound-btn {
-    padding: 10px 6px;
+    padding: clamp(7px, 2%, 12px) 4px;
     border-radius: var(--ha-card-border-radius, 12px);
     border: 1px solid var(--divider-color);
     background: var(--secondary-background-color, var(--primary-background-color));
@@ -176,24 +191,26 @@ const STYLES = `
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
     color: var(--primary-text-color);
     font-family: inherit;
     transition: background 0.15s;
+    min-width: 0;
   }
   .sound-btn ha-icon {
-    --mdc-icon-size: 22px;
+    --mdc-icon-size: clamp(18px, 5cqi, 24px);
     color: var(--primary-color);
+    flex-shrink: 0;
   }
   .sound-btn span {
-    font-size: 11px;
+    font-size: clamp(9px, 2.5cqi, 11px);
     text-align: center;
     line-height: 1.2;
     color: var(--secondary-text-color);
+    word-break: break-word;
+    max-width: 100%;
   }
-  .sound-btn:hover {
-    background: var(--primary-background-color);
-  }
+  .sound-btn:hover { background: var(--primary-background-color); }
   .sound-btn:active { opacity: 0.7; }
   .sound-btn-empty {
     color: var(--secondary-text-color);
@@ -205,27 +222,27 @@ const STYLES = `
     grid-column: 1 / -1;
   }
 
-  /* Number Caller */
+  /* ── Number Caller ── */
   .number-display {
     text-align: center;
-    padding: 8px 0 4px;
+    padding: 4px 0;
   }
   .number-letter {
-    font-size: 13px;
+    font-size: clamp(11px, 3cqi, 14px);
     font-weight: 500;
     color: var(--secondary-text-color);
     letter-spacing: 2px;
     margin-bottom: 2px;
   }
   .number-big {
-    font-size: 64px;
+    font-size: clamp(40px, 14cqi, 72px);
     font-weight: 700;
     line-height: 1;
     color: var(--primary-color);
     letter-spacing: -2px;
   }
   .number-placeholder {
-    font-size: 48px;
+    font-size: clamp(32px, 10cqi, 52px);
     font-weight: 300;
     color: var(--disabled-color, var(--divider-color));
     line-height: 1.2;
@@ -233,27 +250,30 @@ const STYLES = `
 
   .caller-controls {
     display: flex;
-    gap: 8px;
-    margin: 10px 0 8px;
+    gap: 6px;
+    margin: 8px 0 6px;
+    flex-wrap: wrap;
   }
   .caller-btn {
     flex: 1;
-    padding: 10px 8px;
+    min-width: 44px;
+    padding: clamp(8px, 2%, 12px) 6px;
     border-radius: var(--ha-card-border-radius, 12px);
     border: 1px solid var(--divider-color);
     background: var(--secondary-background-color, var(--primary-background-color));
     cursor: pointer;
-    font-size: 12px;
+    font-size: clamp(11px, 2.5cqi, 13px);
     font-weight: 500;
     font-family: inherit;
     color: var(--primary-text-color);
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 5px;
+    gap: 4px;
     transition: background 0.15s;
+    white-space: nowrap;
   }
-  .caller-btn ha-icon { --mdc-icon-size: 16px; }
+  .caller-btn ha-icon { --mdc-icon-size: 16px; flex-shrink: 0; }
   .caller-btn:hover { background: var(--primary-background-color); }
   .caller-btn:active { opacity: 0.7; }
   .caller-btn.draw {
@@ -279,17 +299,19 @@ const STYLES = `
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
-    max-height: 110px;
+    max-height: 108px;
     overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--divider-color) transparent;
   }
   .called-number {
-    width: 26px;
-    height: 26px;
+    width: clamp(22px, 6cqi, 28px);
+    height: clamp(22px, 6cqi, 28px);
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 10px;
+    font-size: clamp(8px, 2.5cqi, 11px);
     font-weight: 600;
     background: var(--secondary-background-color, var(--primary-background-color));
     border: 1px solid var(--divider-color);
@@ -301,24 +323,40 @@ const STYLES = `
     background: var(--primary-color);
     border-color: var(--primary-color);
     color: var(--text-primary-color, white);
-    width: 32px;
-    height: 32px;
-    font-size: 12px;
+    width: clamp(28px, 8cqi, 34px);
+    height: clamp(28px, 8cqi, 34px);
+    font-size: clamp(10px, 3cqi, 13px);
     font-weight: 700;
   }
   .called-count {
     font-size: 11px;
     color: var(--secondary-text-color);
     text-align: right;
-    margin-top: 6px;
+    margin-top: 4px;
   }
 
-  /* Bingo column tints */
+  /* ── Bingo column tints ── */
   .cn-b { border-color: #3b82f6; color: #3b82f6; }
   .cn-i { border-color: #ef4444; color: #ef4444; }
   .cn-n { border-color: #f59e0b; color: #f59e0b; }
   .cn-g { border-color: #10b981; color: #10b981; }
   .cn-o { border-color: #8b5cf6; color: #8b5cf6; }
+
+  /* ── Container query: very narrow card (e.g. sidebar / 1/3 grid) ── */
+  @container bingo (max-width: 280px) {
+    .card-header-title { font-size: 16px; }
+    .source-btn span { display: none; }
+    .caller-btn.draw span { display: none; }
+    .called-numbers { max-height: 80px; }
+  }
+
+  /* ── Container query: wide card (2+ grid columns) ── */
+  @container bingo (min-width: 500px) {
+    .sections { flex-direction: row; flex-wrap: wrap; align-items: flex-start; }
+    .sections > * { flex: 1 1 220px; }
+    .sections > hr { flex: 0 0 100%; margin: 0; height: 1px; }
+    .number-display { padding: 0; }
+  }
 `;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -409,7 +447,11 @@ class BingoabendCard extends HTMLElement {
     }
   }
 
+  // Legacy grid layout
   getCardSize() { return 6; }
+
+  // New HA Sections layout
+  getLayoutSize() { return { columns: 1, rows: 6 }; }
 
   // ─── Render ──────────────────────────────────────────────────────────────
 
