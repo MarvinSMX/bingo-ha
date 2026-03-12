@@ -156,4 +156,4 @@ Die Integration nutzt Standard-HA-Dienste:
 | `media_player.select_source` | Quelle wechseln (Line-In / Musik) |
 | `media_player.play_media` | Sound abspielen (`announce: true`) |
 | `media_player.volume_set` | Lautstärke setzen |
-| `tts.cloud_say` / `tts.google_translate_say` | Zahlen ansagen (optional) |
+| `tts.cloud_say` | Zahlen ansagen (erfordert Nabu Casa / HA Cloud) |

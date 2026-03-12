@@ -15,7 +15,7 @@
  *       icon: "mdi:trumpet"
  */
 
-const CARD_VERSION = "1.4.0";
+const CARD_VERSION = "1.5.0";
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
@@ -464,13 +464,17 @@ class BingoabendCard extends HTMLElement {
   }
 
   _activateMusic() {
+    const entity = this._config.sonos_entity;
     if (this._config.music_source) {
+      // Explicit source configured → select it
       this._callService('media_player', 'select_source', {
-        entity_id: this._config.sonos_entity,
+        entity_id: entity,
         source: this._config.music_source,
       });
     } else {
-      this._callService('media_player', 'media_play', { entity_id: this._config.sonos_entity });
+      // No source configured → resume whatever was playing before Line-In.
+      // media_play tells Sonos to resume its last streaming playback.
+      this._callService('media_player', 'media_play', { entity_id: entity });
     }
   }
 
@@ -935,18 +939,11 @@ class BingoabendNumberCallerCard extends HTMLElement {
   _sayTts(message) {
     const entity = this._config.sonos_entity;
     if (!entity || !this._hass) return;
-    // Try HA Cloud TTS first, then Google Translate fallback
     this._hass.callService('tts', 'cloud_say', {
       entity_id: entity,
       message,
       language: 'de-DE',
-    }).catch(() =>
-      this._hass.callService('tts', 'google_translate_say', {
-        entity_id: entity,
-        message,
-        language: 'de',
-      }).catch(err => console.warn('[Bingoabend] TTS:', err))
-    );
+    }).catch(err => console.warn('[Bingoabend] TTS cloud_say:', err));
   }
 
   _resetGame() {
@@ -1132,6 +1129,11 @@ class BingoabendSoundboardCard extends HTMLElement {
     this.attachShadow({ mode: 'open' });
     this._rendered = false;
     this._playingIdx = null;
+    // Restore state after soundboard clip:
+    //   0 = idle, 1 = armed (waiting for clip to start), 2 = ready (clip playing, waiting for end)
+    this._watchPhase = 0;
+    this._snapState = null;   // { source, media_content_id, media_content_type, wasPlaying }
+    this._watchTimer = null;
   }
 
   static getConfigElement() {
@@ -1154,7 +1156,66 @@ class BingoabendSoundboardCard extends HTMLElement {
     this._render();
   }
 
-  set hass(hass) { this._hass = hass; }
+  set hass(hass) {
+    const prevHass = this._hass;
+    this._hass = hass;
+
+    if (this._watchPhase > 0) {
+      const entity = this._config?.sonos_entity;
+      if (!entity) return;
+      const prev = prevHass?.states[entity]?.state;
+      const curr = hass.states[entity]?.state;
+
+      // Phase 1: wait for the clip to start playing
+      if (this._watchPhase === 1 && curr === 'playing') {
+        this._watchPhase = 2;
+      }
+      // Phase 2: detect clip end (playing → idle/paused/off)
+      if (this._watchPhase === 2 && prev === 'playing' && curr !== 'playing') {
+        this._clearWatchTimer();
+        this._watchPhase = 0;
+        this._doRestore();
+      }
+    }
+  }
+
+  _clearWatchTimer() {
+    if (this._watchTimer) { clearTimeout(this._watchTimer); this._watchTimer = null; }
+  }
+
+  _doRestore() {
+    const snap = this._snapState;
+    this._snapState = null;
+    if (!snap || !snap.wasPlaying || !this._config?.sonos_entity) return;
+
+    const entity = this._config.sonos_entity;
+    const cur = this._hass?.states[entity];
+    // If announce: true already restored correctly, nothing to do
+    if (cur?.state === 'playing' && cur?.attributes?.source === snap.source) return;
+
+    const lineinSource = this._config.linein_source ?? null;
+    setTimeout(() => {
+      if (snap.source && snap.source === lineinSource) {
+        // Line-In: selecting the source is enough (hardware input, no "play" needed)
+        this._callService('media_player', 'select_source', {
+          entity_id: entity,
+          source: snap.source,
+        }).catch(() => {});
+      } else {
+        // Streaming source (radio, Spotify, etc.): select source then resume playback
+        const doPlay = () =>
+          this._callService('media_player', 'media_play', { entity_id: entity }).catch(() => {});
+        if (snap.source) {
+          this._callService('media_player', 'select_source', {
+            entity_id: entity,
+            source: snap.source,
+          }).then(() => setTimeout(doPlay, 600)).catch(doPlay);
+        } else {
+          doPlay();
+        }
+      }
+    }, 400);
+  }
 
   connectedCallback() {
     requestAnimationFrame(() => this._applyGridHeight());
@@ -1239,17 +1300,39 @@ class BingoabendSoundboardCard extends HTMLElement {
   _playSound(idx) {
     const sound = this._config.sounds?.[idx];
     if (!sound?.url) return;
+
+    const entity = this._config.sonos_entity;
+    const st = this._hass?.states[entity];
+    const attrs = st?.attributes ?? {};
+
+    // Full snapshot so we can restore regardless of whether announce: true works
+    this._snapState = {
+      source:             attrs.source             ?? null,
+      media_content_id:   attrs.media_content_id   ?? null,
+      media_content_type: attrs.media_content_type ?? null,
+      wasPlaying:         st?.state === 'playing',
+    };
+    this._watchPhase = 1;
+    this._clearWatchTimer();
+    // Fallback: restore after 60 s if state transitions never fired
+    this._watchTimer = setTimeout(() => {
+      this._watchPhase = 0;
+      this._doRestore();
+    }, 60000);
+
     let url = sound.url;
     if (url.startsWith('/')) {
       const base = (this._config.base_url || window.location.origin).replace(/\/$/, '');
       url = base + url;
     }
+
     this._callService('media_player', 'play_media', {
-      entity_id: this._config.sonos_entity,
+      entity_id: entity,
       media_content_id: url,
       media_content_type: 'music',
       extra: { announce: true },
     });
+
     // Brief visual feedback
     this._playingIdx = idx;
     this._render();
