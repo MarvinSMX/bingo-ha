@@ -15,7 +15,7 @@
  *       icon: "mdi:trumpet"
  */
 
-const CARD_VERSION = "1.2.4";
+const CARD_VERSION = "1.2.5";
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
@@ -700,21 +700,23 @@ class BingoabendCard extends HTMLElement {
     const sound = this._config.sounds?.[idx];
     if (!sound?.url) return;
 
-    // Sonos fetches the file directly via UPnP and needs:
-    //   1. An absolute URL  (relative /local/... won't work)
-    //   2. A resolvable MIME type (media-source:// causes UPnP error 714)
-    // Build the absolute URL from the configured base_url or the browser origin.
-    // The browser origin works when Sonos and HA are on the same LAN segment.
+    // Build absolute URL — Sonos needs a full URL, not a relative path.
+    // Use base_url from config (preferred: http://192.168.x.x:8123) or
+    // fall back to the browser origin.
     let url = sound.url;
     if (url.startsWith('/')) {
       const base = (this._config.base_url || window.location.origin).replace(/\/$/, '');
       url = base + url;
     }
 
+    // announce:true uses HA's Sonos snapshot/restore code path which handles
+    // MIME-type detection correctly (avoids UPnP error 714) and is ideal
+    // for soundboard effects: play clip → resume previous state.
     this._callService('media_player', 'play_media', {
       entity_id: this._config.sonos_entity,
       media_content_id: url,
       media_content_type: 'music',
+      extra: { announce: true },
     });
   }
 
