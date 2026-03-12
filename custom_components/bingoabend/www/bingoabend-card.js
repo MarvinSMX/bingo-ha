@@ -15,7 +15,7 @@
  *       icon: "mdi:trumpet"
  */
 
-const CARD_VERSION = "1.3.1";
+const CARD_VERSION = "1.4.0";
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
@@ -24,10 +24,13 @@ const STYLES = `
     display: block;
     container-type: inline-size;
     container-name: bingo;
+    /* Clip content to the grid cell – don't visually overflow */
+    overflow: hidden;
   }
 
   ha-card {
     padding: 0;
+    overflow: hidden;
   }
 
   /* ── Header ── */
@@ -170,54 +173,7 @@ const STYLES = `
     flex-shrink: 0;
   }
 
-  /* ── Soundboard ── */
-  .sound-grid {
-    display: grid;
-    /* Fluid columns: as many as fit, min 64px each */
-    grid-template-columns: repeat(auto-fill, minmax(clamp(60px, 18cqi, 90px), 1fr));
-    gap: 6px;
-  }
-  .sound-btn {
-    padding: clamp(7px, 2%, 12px) 4px;
-    border-radius: var(--ha-card-border-radius, 12px);
-    border: 1px solid var(--divider-color);
-    background: var(--secondary-background-color, var(--primary-background-color));
-    cursor: pointer;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-    color: var(--primary-text-color);
-    font-family: inherit;
-    transition: background 0.15s;
-    min-width: 0;
-  }
-  .sound-btn ha-icon {
-    --mdc-icon-size: clamp(18px, 5cqi, 24px);
-    color: var(--primary-color);
-    flex-shrink: 0;
-  }
-  .sound-btn span {
-    font-size: clamp(9px, 2.5cqi, 11px);
-    text-align: center;
-    line-height: 1.2;
-    color: var(--secondary-text-color);
-    word-break: break-word;
-    max-width: 100%;
-  }
-  .sound-btn:hover { background: var(--primary-background-color); }
-  .sound-btn:active { opacity: 0.7; }
-  .sound-btn-empty {
-    color: var(--secondary-text-color);
-    font-size: 12px;
-    text-align: center;
-    padding: 12px;
-    border: 1px dashed var(--divider-color);
-    border-radius: var(--ha-card-border-radius, 12px);
-    grid-column: 1 / -1;
-  }
-
-  /* ── Container query: very narrow card (e.g. sidebar / 1/3 grid) ── */
+  /* ── Container query: very narrow card ── */
   @container bingo (max-width: 280px) {
     .card-header-title { font-size: 16px; }
     .source-btn span { display: none; }
@@ -226,7 +182,6 @@ const STYLES = `
   /* ── Container query: wide card ── */
   @container bingo (min-width: 480px) {
     .source-btn { flex-direction: row; padding: 10px 16px; gap: 8px; }
-    .sound-grid { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); }
   }
 `;
 
@@ -273,7 +228,6 @@ class BingoabendCard extends HTMLElement {
     return {
       sonos_entity: 'media_player.sonos_wohnzimmer',
       linein_source: 'Line-In',
-      sounds: [],
     };
   }
 
@@ -282,7 +236,6 @@ class BingoabendCard extends HTMLElement {
     this._config = {
       title: 'Bingoabend',
       linein_source: 'Line-In',
-      sounds: [],
       ...config,
     };
     this._render();
@@ -314,15 +267,15 @@ class BingoabendCard extends HTMLElement {
   }
 
   // Legacy masonry layout: 1 unit ≈ 50 px
-  getCardSize() { return 7; }
+  getCardSize() { return 4; }
 
   // Sections layout (HA 2024.3+): 12-column grid, 1 row ≈ 56 px
   getGridOptions() {
     return {
       columns: 6,
-      rows: 7,
+      rows: 4,
       min_columns: 3,
-      min_rows: 5,
+      min_rows: 3,
     };
   }
 
@@ -360,8 +313,6 @@ class BingoabendCard extends HTMLElement {
         ${this._buildAudioSection()}
         <hr>
         ${this._buildVolumeSection()}
-        <hr>
-        ${this._buildSoundboardSection()}
       </div>
     `;
   }
@@ -425,25 +376,6 @@ class BingoabendCard extends HTMLElement {
     `;
   }
 
-  _buildSoundboardSection() {
-    const sounds = this._config.sounds || [];
-    const buttonsHtml = sounds.length === 0
-      ? `<div class="sound-btn-empty">Keine Sounds konfiguriert.<br><small>Füge "sounds:" zur Karten-Konfiguration hinzu.</small></div>`
-      : sounds.map((s, i) => `
-          <button class="sound-btn" data-idx="${i}" title="${this._esc(s.name)}">
-            <ha-icon icon="${this._esc(s.icon || 'mdi:music-note')}"></ha-icon>
-            <span>${this._esc(s.name)}</span>
-          </button>
-        `).join('');
-
-    return `
-      <div>
-        <div class="section-label">Soundboard</div>
-        <div class="sound-grid">${buttonsHtml}</div>
-      </div>
-    `;
-  }
-
   // ─── Partial Updates ─────────────────────────────────────────────────────
 
   _updateAudioSection() {
@@ -488,9 +420,6 @@ class BingoabendCard extends HTMLElement {
       volSlider.addEventListener('change', (e) => this._setVolume(parseInt(e.target.value) / 100));
     }
 
-    root.querySelectorAll('.sound-btn[data-idx]').forEach((btn) => {
-      btn.addEventListener('click', () => this._playSound(parseInt(btn.dataset.idx)));
-    });
   }
 
   // ─── Actions ─────────────────────────────────────────────────────────────
@@ -520,30 +449,6 @@ class BingoabendCard extends HTMLElement {
     });
   }
 
-  _playSound(idx) {
-    const sound = this._config.sounds?.[idx];
-    if (!sound?.url) return;
-
-    // Build absolute URL — Sonos needs a full URL, not a relative path.
-    // Use base_url from config (preferred: http://192.168.x.x:8123) or
-    // fall back to the browser origin.
-    let url = sound.url;
-    if (url.startsWith('/')) {
-      const base = (this._config.base_url || window.location.origin).replace(/\/$/, '');
-      url = base + url;
-    }
-
-    // announce:true uses HA's Sonos snapshot/restore code path which handles
-    // MIME-type detection correctly (avoids UPnP error 714) and is ideal
-    // for soundboard effects: play clip → resume previous state.
-    this._callService('media_player', 'play_media', {
-      entity_id: this._config.sonos_entity,
-      media_content_id: url,
-      media_content_type: 'music',
-      extra: { announce: true },
-    });
-  }
-
   // ─── Util ────────────────────────────────────────────────────────────────
 
   _callService(domain, service, data) {
@@ -565,48 +470,6 @@ const EDITOR_STYLES = `
   :host { display: block; }
   .editor { display: flex; flex-direction: column; gap: 16px; padding: 16px; }
   ha-form { display: block; }
-
-  .sounds-section { display: flex; flex-direction: column; gap: 8px; }
-  .sounds-header {
-    display: flex; align-items: center; justify-content: space-between;
-    font-size: 11px; font-weight: 500; letter-spacing: 0.6px;
-    text-transform: uppercase; color: var(--secondary-text-color);
-  }
-  .sounds-add {
-    background: none; border: 1px solid var(--primary-color);
-    color: var(--primary-color); border-radius: 8px;
-    padding: 4px 10px; cursor: pointer; font-size: 12px; font-weight: 500;
-    display: flex; align-items: center; gap: 4px;
-  }
-  .sounds-add ha-icon { --mdc-icon-size: 14px; }
-  .sounds-add:hover { background: rgba(var(--rgb-primary-color,3,169,244),0.1); }
-
-  .sound-row {
-    display: grid; grid-template-columns: 1fr 1fr auto auto; gap: 6px;
-    align-items: center; padding: 8px; border-radius: 8px;
-    border: 1px solid var(--divider-color);
-    background: var(--secondary-background-color, var(--primary-background-color));
-  }
-  .sound-row ha-textfield { display: block; }
-  .sound-icon-preview {
-    color: var(--primary-color);
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer;
-  }
-  .sound-icon-preview ha-icon { --mdc-icon-size: 22px; }
-  .sound-remove {
-    background: none; border: none; cursor: pointer;
-    color: var(--error-color, #d32f2f); padding: 4px;
-    display: flex; align-items: center; border-radius: 4px;
-  }
-  .sound-remove:hover { background: rgba(211,47,47,0.1); }
-  .sound-remove ha-icon { --mdc-icon-size: 18px; }
-  .sound-row-full { grid-column: 1 / -1; }
-
-  .icon-hint {
-    font-size: 11px; color: var(--secondary-text-color);
-    padding: 0 4px;
-  }
 `;
 
 const MAIN_SCHEMA = [
@@ -614,7 +477,6 @@ const MAIN_SCHEMA = [
   { name: 'sonos_entity',  label: 'Sonos Media Player',       selector: { entity: { domain: 'media_player' } } },
   { name: 'linein_source', label: 'Line-In Quellenname',      selector: { text: {} } },
   { name: 'music_source',  label: 'Musik-Quelle (optional)',  selector: { text: {} } },
-  { name: 'base_url',      label: 'HA-URL für Sonos (optional, z.B. http://192.168.1.100:8123)', selector: { text: {} } },
 ];
 
 class BingoabendCardEditor extends HTMLElement {
@@ -625,7 +487,7 @@ class BingoabendCardEditor extends HTMLElement {
   }
 
   setConfig(config) {
-    this._config = { title: 'Bingoabend', linein_source: 'Line-In', max_number: 75, sounds: [], ...config };
+    this._config = { title: 'Bingoabend', linein_source: 'Line-In', ...config };
     this._render();
   }
 
@@ -654,89 +516,9 @@ class BingoabendCardEditor extends HTMLElement {
     });
     editor.appendChild(form);
 
-    // ── Sounds list ──
-    const soundsSection = this._buildSoundsSection();
-    editor.appendChild(soundsSection);
-
     while (this.shadowRoot.firstChild) this.shadowRoot.removeChild(this.shadowRoot.firstChild);
     this.shadowRoot.appendChild(style);
     this.shadowRoot.appendChild(editor);
-  }
-
-  _buildSoundsSection() {
-    const section = document.createElement('div');
-    section.className = 'sounds-section';
-
-    const header = document.createElement('div');
-    header.className = 'sounds-header';
-    header.innerHTML = `<span>Soundboard</span>`;
-
-    const addBtn = document.createElement('button');
-    addBtn.className = 'sounds-add';
-    addBtn.innerHTML = `<ha-icon icon="mdi:plus"></ha-icon> Sound hinzufügen`;
-    addBtn.addEventListener('click', () => {
-      this._config = {
-        ...this._config,
-        sounds: [...(this._config.sounds || []), { name: '', url: '', icon: 'mdi:music-note' }],
-      };
-      this._dispatchChange();
-      this._render();
-    });
-    header.appendChild(addBtn);
-    section.appendChild(header);
-
-    (this._config.sounds || []).forEach((sound, idx) => {
-      section.appendChild(this._buildSoundRow(sound, idx));
-    });
-
-    return section;
-  }
-
-  _buildSoundRow(sound, idx) {
-    const row = document.createElement('div');
-    row.className = 'sound-row';
-
-    const mkField = (label, value, field, fullWidth) => {
-      const tf = document.createElement('ha-textfield');
-      tf.label = label;
-      tf.value = value || '';
-      if (fullWidth) tf.className = 'sound-row-full';
-      tf.style.cssText = 'display:block;';
-      tf.addEventListener('change', (e) => {
-        const sounds = [...(this._config.sounds || [])];
-        sounds[idx] = { ...sounds[idx], [field]: e.target.value };
-        this._config = { ...this._config, sounds };
-        this._dispatchChange();
-      });
-      return tf;
-    };
-
-    row.appendChild(mkField('Name', sound.name, 'name'));
-    row.appendChild(mkField('MDI Icon', sound.icon, 'icon'));
-
-    const iconPreview = document.createElement('div');
-    iconPreview.className = 'sound-icon-preview';
-    iconPreview.title = 'Vorschau';
-    iconPreview.innerHTML = `<ha-icon icon="${sound.icon || 'mdi:music-note'}"></ha-icon>`;
-    row.appendChild(iconPreview);
-
-    const removeBtn = document.createElement('button');
-    removeBtn.className = 'sound-remove';
-    removeBtn.title = 'Entfernen';
-    removeBtn.innerHTML = `<ha-icon icon="mdi:delete"></ha-icon>`;
-    removeBtn.addEventListener('click', () => {
-      const sounds = [...(this._config.sounds || [])];
-      sounds.splice(idx, 1);
-      this._config = { ...this._config, sounds };
-      this._dispatchChange();
-      this._render();
-    });
-    row.appendChild(removeBtn);
-
-    const urlField = mkField('Sound URL  (z.B. /local/sounds/fanfare.mp3)', sound.url, 'url', true);
-    row.appendChild(urlField);
-
-    return row;
   }
 
   _dispatchChange() {
@@ -753,9 +535,11 @@ const CALLER_STYLES = `
     display: block;
     container-type: inline-size;
     container-name: caller;
+    overflow: hidden;
   }
   ha-card {
     padding: 0;
+    overflow: hidden;
   }
   .card-header {
     display: flex;
@@ -1099,6 +883,387 @@ class BingoabendNumberCallerCardEditor extends HTMLElement {
 
 customElements.define('bingoabend-numbercaller-card-editor', BingoabendNumberCallerCardEditor);
 
+// ─── Soundboard Card ──────────────────────────────────────────────────────────
+
+const SOUNDBOARD_STYLES = `
+  :host {
+    display: block;
+    container-type: inline-size;
+    container-name: soundboard;
+    overflow: hidden;
+  }
+  ha-card { padding: 0; overflow: hidden; }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 16px 0;
+  }
+  .card-header ha-icon {
+    color: var(--primary-color);
+    --mdc-icon-size: 22px;
+    flex-shrink: 0;
+  }
+  .card-header-title {
+    font-size: var(--ha-card-header-font-size, clamp(18px, 5cqi, 24px));
+    font-weight: var(--ha-card-header-font-weight, normal);
+    color: var(--ha-card-header-color, var(--primary-text-color));
+    flex: 1;
+    line-height: 1.2;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .body { padding: 8px 16px 16px; }
+
+  .sound-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(clamp(64px, 20cqi, 96px), 1fr));
+    gap: 8px;
+  }
+  .sound-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: clamp(8px, 2.5%, 14px) 6px;
+    border-radius: var(--ha-card-border-radius, 12px);
+    border: 1px solid var(--divider-color);
+    background: var(--secondary-background-color, var(--primary-background-color));
+    cursor: pointer;
+    color: var(--primary-text-color);
+    font-family: inherit;
+    font-size: clamp(10px, 2.5cqi, 12px);
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    transition: background 0.15s, border-color 0.15s, opacity 0.1s;
+  }
+  .sound-btn ha-icon { --mdc-icon-size: clamp(22px, 7cqi, 30px); color: var(--primary-color); }
+  .sound-btn:hover { background: var(--primary-background-color); }
+  .sound-btn:active { opacity: 0.7; }
+  .sound-btn.playing {
+    background: rgba(var(--rgb-primary-color, 3,169,244), 0.15);
+    border-color: var(--primary-color);
+  }
+  .sound-btn-empty {
+    border: 1px dashed var(--divider-color);
+    opacity: 0.35;
+    cursor: default;
+    pointer-events: none;
+  }
+  .no-sounds {
+    text-align: center;
+    padding: 24px 0;
+    font-size: 13px;
+    color: var(--secondary-text-color);
+  }
+
+  @container soundboard (max-width: 240px) {
+    .card-header-title { font-size: 16px; }
+    .sound-btn span { display: none; }
+  }
+`;
+
+class BingoabendSoundboardCard extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this._rendered = false;
+    this._playingIdx = null;
+  }
+
+  static getConfigElement() {
+    return document.createElement('bingoabend-soundboard-card-editor');
+  }
+
+  static getStubConfig() {
+    return {
+      title: 'Soundboard',
+      sonos_entity: 'media_player.sonos_wohnzimmer',
+      sounds: [
+        { name: 'Fanfare', url: '/local/sounds/fanfare.mp3', icon: 'mdi:trumpet' },
+      ],
+    };
+  }
+
+  setConfig(config) {
+    if (!config.sonos_entity) throw new Error('sonos_entity ist erforderlich');
+    this._config = { title: 'Soundboard', ...config };
+    this._render();
+  }
+
+  set hass(hass) { this._hass = hass; }
+
+  getCardSize() { return 4; }
+
+  getGridOptions() {
+    return { columns: 4, rows: 4, min_columns: 2, min_rows: 2 };
+  }
+
+  _render() {
+    if (!this._config) return;
+    const style = document.createElement('style');
+    style.textContent = SOUNDBOARD_STYLES;
+    const root = document.createElement('ha-card');
+    root.innerHTML = this._buildHTML();
+    while (this.shadowRoot.firstChild) this.shadowRoot.removeChild(this.shadowRoot.firstChild);
+    this.shadowRoot.appendChild(style);
+    this.shadowRoot.appendChild(root);
+    this._rendered = true;
+    this._attachListeners(root);
+  }
+
+  _buildHTML() {
+    return `
+      <div class="card-header">
+        <ha-icon icon="mdi:music-box-multiple"></ha-icon>
+        <div class="card-header-title">${this._esc(this._config.title || 'Soundboard')}</div>
+      </div>
+      <div class="body">
+        ${this._buildSoundboardSection()}
+      </div>
+    `;
+  }
+
+  _buildSoundboardSection() {
+    const sounds = this._config.sounds || [];
+    if (sounds.length === 0) {
+      return `<div class="no-sounds">Keine Sounds konfiguriert</div>`;
+    }
+    const buttons = sounds.map((s, i) => `
+      <button class="sound-btn${this._playingIdx === i ? ' playing' : ''}" data-idx="${i}"
+              title="${this._esc(s.name || '')}">
+        <ha-icon icon="${this._esc(s.icon || 'mdi:music-note')}"></ha-icon>
+        <span>${this._esc(s.name || '?')}</span>
+      </button>
+    `).join('');
+    return `<div class="sound-grid">${buttons}</div>`;
+  }
+
+  _attachListeners(root) {
+    root.querySelectorAll('.sound-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.dataset.idx, 10);
+        this._playSound(idx);
+      });
+    });
+  }
+
+  _playSound(idx) {
+    const sound = this._config.sounds?.[idx];
+    if (!sound?.url) return;
+    let url = sound.url;
+    if (url.startsWith('/')) {
+      const base = (this._config.base_url || window.location.origin).replace(/\/$/, '');
+      url = base + url;
+    }
+    this._callService('media_player', 'play_media', {
+      entity_id: this._config.sonos_entity,
+      media_content_id: url,
+      media_content_type: 'music',
+      extra: { announce: true },
+    });
+    // Brief visual feedback
+    this._playingIdx = idx;
+    this._render();
+    setTimeout(() => { this._playingIdx = null; this._render(); }, 800);
+  }
+
+  _callService(domain, service, data) {
+    if (!this._hass) return Promise.reject('hass not ready');
+    return this._hass.callService(domain, service, data);
+  }
+
+  _esc(str) {
+    return String(str ?? '')
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+}
+
+customElements.define('bingoabend-soundboard-card', BingoabendSoundboardCard);
+
+// ─── Soundboard Editor ────────────────────────────────────────────────────────
+
+const SOUNDBOARD_EDITOR_STYLES = `
+  :host { display: block; }
+  .editor { display: flex; flex-direction: column; gap: 16px; padding: 16px; }
+  ha-form { display: block; }
+
+  .sounds-section { display: flex; flex-direction: column; gap: 8px; }
+  .sounds-header {
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 11px; font-weight: 500; letter-spacing: 0.6px;
+    text-transform: uppercase; color: var(--secondary-text-color);
+  }
+  .sounds-add {
+    background: none; border: 1px solid var(--primary-color);
+    color: var(--primary-color); border-radius: 8px;
+    padding: 4px 10px; cursor: pointer; font-size: 12px; font-weight: 500;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .sounds-add ha-icon { --mdc-icon-size: 14px; }
+  .sounds-add:hover { background: rgba(var(--rgb-primary-color,3,169,244),0.1); }
+
+  .sound-row {
+    display: grid; grid-template-columns: 1fr 1fr auto auto; gap: 6px;
+    align-items: center; padding: 8px; border-radius: 8px;
+    border: 1px solid var(--divider-color);
+    background: var(--secondary-background-color, var(--primary-background-color));
+  }
+  .sound-row ha-textfield { display: block; }
+  .sound-icon-preview {
+    color: var(--primary-color);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .sound-icon-preview ha-icon { --mdc-icon-size: 22px; }
+  .sound-remove {
+    background: none; border: none; cursor: pointer;
+    color: var(--error-color, #d32f2f); padding: 4px;
+    display: flex; align-items: center; border-radius: 4px;
+  }
+  .sound-remove:hover { background: rgba(211,47,47,0.1); }
+  .sound-remove ha-icon { --mdc-icon-size: 18px; }
+  .sound-row-full { grid-column: 1 / -1; }
+`;
+
+const SOUNDBOARD_SCHEMA = [
+  { name: 'title',        label: 'Kartentitel',         selector: { text: {} } },
+  { name: 'sonos_entity', label: 'Sonos Media Player',  selector: { entity: { domain: 'media_player' } } },
+  { name: 'base_url',     label: 'Base URL (optional)', selector: { text: {} } },
+];
+
+class BingoabendSoundboardCardEditor extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this._config = {};
+  }
+
+  setConfig(config) {
+    this._config = { title: 'Soundboard', sounds: [], ...config };
+    this._render();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    const form = this.shadowRoot.querySelector('ha-form');
+    if (form) form.hass = hass;
+  }
+
+  _render() {
+    const style = document.createElement('style');
+    style.textContent = SOUNDBOARD_EDITOR_STYLES;
+
+    const editor = document.createElement('div');
+    editor.className = 'editor';
+
+    const form = document.createElement('ha-form');
+    form.hass = this._hass;
+    form.data = this._config;
+    form.schema = SOUNDBOARD_SCHEMA;
+    form.computeLabel = (s) => s.label;
+    form.addEventListener('value-changed', (ev) => {
+      this._config = { ...this._config, ...ev.detail.value };
+      this._dispatchChange();
+    });
+    editor.appendChild(form);
+
+    editor.appendChild(this._buildSoundsSection());
+
+    while (this.shadowRoot.firstChild) this.shadowRoot.removeChild(this.shadowRoot.firstChild);
+    this.shadowRoot.appendChild(style);
+    this.shadowRoot.appendChild(editor);
+  }
+
+  _buildSoundsSection() {
+    const section = document.createElement('div');
+    section.className = 'sounds-section';
+
+    const header = document.createElement('div');
+    header.className = 'sounds-header';
+    header.innerHTML = `<span>Sounds</span>`;
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'sounds-add';
+    addBtn.innerHTML = `<ha-icon icon="mdi:plus"></ha-icon> Sound hinzufügen`;
+    addBtn.addEventListener('click', () => {
+      this._config = {
+        ...this._config,
+        sounds: [...(this._config.sounds || []), { name: '', url: '', icon: 'mdi:music-note' }],
+      };
+      this._dispatchChange();
+      this._render();
+    });
+    header.appendChild(addBtn);
+    section.appendChild(header);
+
+    (this._config.sounds || []).forEach((sound, idx) => {
+      section.appendChild(this._buildSoundRow(sound, idx));
+    });
+
+    return section;
+  }
+
+  _buildSoundRow(sound, idx) {
+    const row = document.createElement('div');
+    row.className = 'sound-row';
+
+    const mkField = (label, value, field, fullWidth) => {
+      const tf = document.createElement('ha-textfield');
+      tf.label = label;
+      tf.value = value || '';
+      if (fullWidth) tf.className = 'sound-row-full';
+      tf.style.cssText = 'display:block;';
+      tf.addEventListener('change', (e) => {
+        const sounds = [...(this._config.sounds || [])];
+        sounds[idx] = { ...sounds[idx], [field]: e.target.value };
+        this._config = { ...this._config, sounds };
+        this._dispatchChange();
+      });
+      return tf;
+    };
+
+    row.appendChild(mkField('Name', sound.name, 'name'));
+    row.appendChild(mkField('MDI Icon', sound.icon, 'icon'));
+
+    const iconPreview = document.createElement('div');
+    iconPreview.className = 'sound-icon-preview';
+    iconPreview.title = 'Vorschau';
+    iconPreview.innerHTML = `<ha-icon icon="${sound.icon || 'mdi:music-note'}"></ha-icon>`;
+    row.appendChild(iconPreview);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'sound-remove';
+    removeBtn.title = 'Entfernen';
+    removeBtn.innerHTML = `<ha-icon icon="mdi:delete"></ha-icon>`;
+    removeBtn.addEventListener('click', () => {
+      const sounds = [...(this._config.sounds || [])];
+      sounds.splice(idx, 1);
+      this._config = { ...this._config, sounds };
+      this._dispatchChange();
+      this._render();
+    });
+    row.appendChild(removeBtn);
+
+    row.appendChild(mkField('Sound URL  (z.B. /local/sounds/fanfare.mp3)', sound.url, 'url', true));
+
+    return row;
+  }
+
+  _dispatchChange() {
+    this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config }, bubbles: true, composed: true }));
+  }
+}
+
+customElements.define('bingoabend-soundboard-card-editor', BingoabendSoundboardCardEditor);
+
 // ─── Registration ─────────────────────────────────────────────────────────────
 
 window.customCards = window.customCards || [];
@@ -1106,13 +1271,19 @@ window.customCards.push(
   {
     type: 'bingoabend-card',
     name: 'Bingoabend Card',
-    description: 'Sonos Line-In/Mikrofon, Soundboard',
+    description: 'Sonos Line-In/Mikrofon & Lautstärke',
     preview: true,
   },
   {
     type: 'bingoabend-numbercaller-card',
     name: 'Bingoabend Nummern-Caller',
     description: 'Zieht zufällige Bingo-Zahlen mit optionaler TTS-Ansage',
+    preview: true,
+  },
+  {
+    type: 'bingoabend-soundboard-card',
+    name: 'Bingoabend Soundboard',
+    description: 'Spielt Soundeffekte über Sonos ab (announce)',
     preview: true,
   }
 );
