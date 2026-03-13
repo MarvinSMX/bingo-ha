@@ -1289,44 +1289,35 @@ class BingoabendSoundboardCard extends HTMLElement {
       return;
     }
 
-    const browse = (type, id) => this._hass.callWS({
-      type: 'media_player/browse_media',
-      entity_id: spotifyEntity,
-      ...(type != null && { media_content_type: type }),
-      ...(id != null && { media_content_id: id }),
+    const browseSource = (id) => this._hass.callWS({
+      type: 'media_source/browse_media',
+      media_content_id: id,
     });
 
-    // Strategy 1: direct current_user_playlists
-    // Strategy 2: browse root, find playlists item in children, browse that
-    // Strategy 3: root children are already playlists
-    const strategies = [
-      () => browse('current_user_playlists', ''),
-      async () => {
-        const root = await browse(null, null);
-        console.log('[Soundboard] Spotify root children:', root.children?.map(c => c.media_content_type + '/' + c.title));
-        const item = root.children?.find(c =>
-          c.media_content_type === 'current_user_playlists' ||
-          (c.title || '').toLowerCase().includes('playlist')
-        );
-        if (item && item.can_expand) return browse(item.media_content_type, item.media_content_id);
-        if (root.children?.length) { return root; } // root IS the playlist list
-        throw new Error('no playlist item found');
-      },
-    ];
+    try {
+      const root = await browseSource('media-source://spotify/');
+      console.log('[Soundboard] Spotify root children:', root.children?.map(c => c.title + ' | ' + c.media_content_id));
 
-    for (const strategy of strategies) {
-      try {
-        const result = await strategy();
-        const children = result.children || [];
-        if (children.length > 0) {
-          this._spotifyPlaylists = children;
-          console.log('[Soundboard] Spotify Playlists geladen:', children.length);
-          this._render();
-          return;
-        }
-      } catch (_) { /* try next */ }
+      let playlists = root.children || [];
+      const playlistsItem = playlists.find(c =>
+        (c.media_content_id || '').includes('current_user_playlists') ||
+        (c.title || '').toLowerCase().includes('playlist')
+      );
+      if (playlistsItem?.can_expand) {
+        const sub = await browseSource(playlistsItem.media_content_id);
+        playlists = sub.children || [];
+      }
+
+      if (playlists.length > 0) {
+        this._spotifyPlaylists = playlists;
+        console.log('[Soundboard] Spotify Playlists geladen:', playlists.length);
+        this._render();
+        return;
+      }
+    } catch (e) {
+      console.warn('[Soundboard] Spotify laden fehlgeschlagen:', e);
     }
-    console.warn('[Soundboard] Spotify Playlists konnten nicht geladen werden. Entity:', spotifyEntity);
+    console.warn('[Soundboard] Keine Spotify Playlists gefunden. Entity:', spotifyEntity);
   }
 
   _attachListeners(root) {
