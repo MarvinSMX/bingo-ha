@@ -218,8 +218,6 @@ class BingoabendCard extends HTMLElement {
     this.attachShadow({ mode: 'open' });
     this._rendered = false;
     this._lastEntityMissing = null;
-    this._musicVolume = 50; // target volume for music/soundboard playback
-    window.__bingoMusicVolume = this._musicVolume;
   }
 
   static getConfigElement() {
@@ -340,7 +338,7 @@ class BingoabendCard extends HTMLElement {
     const micClass   = isMicActive ? 'active-mic' : '';
     const musicClass = (!isMicActive && state) ? 'active-music' : '';
 
-    const musicPct = this._musicVolume;
+    const volPct = Math.round((state?.attributes?.volume_level ?? 0.5) * 100);
 
     return `
       <div class="card-header">
@@ -360,10 +358,10 @@ class BingoabendCard extends HTMLElement {
           </button>
         </div>
         <div class="volume-section">
-          <div class="volume-row vol-music">
-            <ha-icon icon="mdi:music"></ha-icon>
-            <input type="range" id="vol-music-slider" min="0" max="100" step="2" value="${musicPct}">
-            <div class="volume-value" id="vol-music-value">${musicPct}%</div>
+          <div class="volume-row">
+            <ha-icon icon="mdi:volume-high"></ha-icon>
+            <input type="range" id="vol-slider" min="0" max="100" step="2" value="${volPct}">
+            <div class="volume-value" id="vol-value">${volPct}%</div>
           </div>
         </div>
       </div>
@@ -383,6 +381,13 @@ class BingoabendCard extends HTMLElement {
     const btnMusic = this.shadowRoot.querySelector('#btn-music');
     if (btnMic)   btnMic.className   = `source-btn ${isMicActive ? 'active-mic' : ''}`;
     if (btnMusic) btnMusic.className = `source-btn ${(!isMicActive && state) ? 'active-music' : ''}`;
+
+    // Sync slider from entity
+    const volPct = Math.round((state?.attributes?.volume_level ?? 0.5) * 100);
+    const s = this.shadowRoot.querySelector('#vol-slider');
+    const v = this.shadowRoot.querySelector('#vol-value');
+    if (s && !s.matches(':active')) { s.value = volPct; }
+    if (v) v.textContent = `${volPct}%`;
   }
 
   // ─── Listeners ───────────────────────────────────────────────────────────
@@ -391,15 +396,17 @@ class BingoabendCard extends HTMLElement {
     root.querySelector('#btn-mic')?.addEventListener('click',   () => this._activateMic());
     root.querySelector('#btn-music')?.addEventListener('click', () => this._activateMusic());
 
-    const musicSlider = root.querySelector('#vol-music-slider');
-    if (musicSlider) {
-      musicSlider.addEventListener('input', (e) => {
-        const v = this.shadowRoot.querySelector('#vol-music-value');
+    const slider = root.querySelector('#vol-slider');
+    if (slider) {
+      slider.addEventListener('input', (e) => {
+        const v = this.shadowRoot.querySelector('#vol-value');
         if (v) v.textContent = `${e.target.value}%`;
       });
-      musicSlider.addEventListener('change', (e) => {
-        this._musicVolume = parseInt(e.target.value);
-        window.__bingoMusicVolume = this._musicVolume;
+      slider.addEventListener('change', (e) => {
+        this._callService('media_player', 'volume_set', {
+          entity_id: this._getGroupMembers(),
+          volume_level: parseInt(e.target.value) / 100,
+        });
       });
     }
   }
@@ -408,10 +415,6 @@ class BingoabendCard extends HTMLElement {
 
   _activateMic() {
     const entity = this._config.sonos_entity;
-    this._callService('media_player', 'volume_set', {
-      entity_id: this._getGroupMembers(),
-      volume_level: 1.0,
-    });
     this._callService('media_player', 'select_source', {
       entity_id: entity,
       source: this._config.linein_source,
@@ -422,23 +425,11 @@ class BingoabendCard extends HTMLElement {
 
   _activateMusic() {
     const entity = this._config.sonos_entity;
-    const vol = (this._musicVolume ?? 50) / 100;
-    this._callService('media_player', 'volume_set', {
-      entity_id: this._getGroupMembers(),
-      volume_level: vol,
-    }).then(() => {
-      if (this._config.music_source) {
-        this._callService('media_player', 'select_source', { entity_id: entity, source: this._config.music_source });
-      } else {
-        this._callService('media_player', 'media_play', { entity_id: entity });
-      }
-    }).catch(() => {
-      if (this._config.music_source) {
-        this._callService('media_player', 'select_source', { entity_id: entity, source: this._config.music_source });
-      } else {
-        this._callService('media_player', 'media_play', { entity_id: entity });
-      }
-    });
+    if (this._config.music_source) {
+      this._callService('media_player', 'select_source', { entity_id: entity, source: this._config.music_source });
+    } else {
+      this._callService('media_player', 'media_play', { entity_id: entity });
+    }
   }
 
   // ─── Util ────────────────────────────────────────────────────────────────
@@ -1096,9 +1087,8 @@ class BingoabendSoundboardCard extends HTMLElement {
     // Restore state after soundboard clip:
     //   0 = idle, 1 = armed (waiting for clip to start), 2 = ready (clip playing, waiting for end)
     this._watchPhase = 0;
-    this._snapState = null;   // { source, media_content_id, media_content_type, wasPlaying, micVolume }
+    this._snapState = null;   // { source, media_content_id, media_content_type, wasPlaying }
     this._watchTimer = null;
-    this._musicVolume = null; // last known volume when not in linein/mic mode
   }
 
   static getConfigElement() {
@@ -1126,15 +1116,6 @@ class BingoabendSoundboardCard extends HTMLElement {
     this._hass = hass;
 
     // Track music volume whenever the entity is NOT in mic/linein mode
-    const _entity = this._config?.sonos_entity;
-    if (_entity && this._watchPhase === 0) {
-      const st = hass.states[_entity];
-      const linein = this._config.linein_source ?? null;
-      if (st && st.attributes?.source !== linein) {
-        this._musicVolume = Math.round((st.attributes?.volume_level ?? 0.5) * 100);
-      }
-    }
-
     if (this._watchPhase > 0) {
       const entity = this._config?.sonos_entity;
       if (!entity) return;
@@ -1176,13 +1157,6 @@ class BingoabendSoundboardCard extends HTMLElement {
           entity_id: entity,
           source: snap.source,
         }).catch(() => {});
-        // Restore mic volume
-        if (snap.micVolume !== null) {
-          this._callService('media_player', 'volume_set', {
-            entity_id: entity,
-            volume_level: snap.micVolume / 100,
-          }).catch(() => {});
-        }
       } else {
         // Streaming source (radio, Spotify, etc.): select source then resume playback
         const doPlay = () =>
@@ -1287,17 +1261,12 @@ class BingoabendSoundboardCard extends HTMLElement {
     const st = this._hass?.states[entity];
     const attrs = st?.attributes ?? {};
 
-    const linein = this._config.linein_source ?? null;
-    const isMicActive = linein && attrs.source === linein;
-    const currentVolumePct = Math.round((attrs.volume_level ?? 0.5) * 100);
-
     // Full snapshot so we can restore regardless of whether announce: true works
     this._snapState = {
       source:             attrs.source             ?? null,
       media_content_id:   attrs.media_content_id   ?? null,
       media_content_type: attrs.media_content_type ?? null,
       wasPlaying:         st?.state === 'playing',
-      micVolume:          isMicActive ? currentVolumePct : null,
     };
     this._watchPhase = 1;
     this._clearWatchTimer();
@@ -1313,22 +1282,11 @@ class BingoabendSoundboardCard extends HTMLElement {
       url = base + url;
     }
 
-    const doPlay = () => this._callService('media_player', 'play_media', {
+    this._callService('media_player', 'play_media', {
       entity_id: entity,
       media_content_id: url,
       media_content_type: 'music',
     });
-
-    // If mic is active, set volume to music level first, then play
-    const musicVol = this._musicVolume ?? window.__bingoMusicVolume ?? null;
-    if (isMicActive && musicVol !== null) {
-      this._callService('media_player', 'volume_set', {
-        entity_id: entity,
-        volume_level: musicVol / 100,
-      }).then(() => setTimeout(doPlay, 300)).catch(doPlay);
-    } else {
-      doPlay();
-    }
 
     // Brief visual feedback
     this._playingIdx = idx;
