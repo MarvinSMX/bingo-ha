@@ -1071,6 +1071,22 @@ const SOUNDBOARD_STYLES = `
     font-size: 13px;
     color: var(--secondary-text-color);
   }
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--secondary-text-color);
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    margin: 10px 0 4px;
+  }
+  .playlist-thumb {
+    width: clamp(22px, 7cqi, 30px);
+    height: clamp(22px, 7cqi, 30px);
+    border-radius: 4px;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+  .body { overflow-y: auto; }
 
   @container soundboard (max-width: 240px) {
     .card-header-title { font-size: 16px; }
@@ -1089,6 +1105,8 @@ class BingoabendSoundboardCard extends HTMLElement {
     this._watchPhase = 0;
     this._snapState = null;   // { source, media_content_id, media_content_type, wasPlaying }
     this._watchTimer = null;
+    this._spotifyPlaylists = [];
+    this._spotifyLoaded = false;
   }
 
   static getConfigElement() {
@@ -1115,7 +1133,11 @@ class BingoabendSoundboardCard extends HTMLElement {
     const prevHass = this._hass;
     this._hass = hass;
 
-    // Track music volume whenever the entity is NOT in mic/linein mode
+    if (!this._spotifyLoaded) {
+      this._spotifyLoaded = true;
+      this._loadSpotifyPlaylists();
+    }
+
     if (this._watchPhase > 0) {
       const entity = this._config?.sonos_entity;
       if (!entity) return;
@@ -1152,11 +1174,12 @@ class BingoabendSoundboardCard extends HTMLElement {
     const lineinSource = this._config.linein_source ?? null;
     setTimeout(() => {
       if (snap.source && snap.source === lineinSource) {
-        // Line-In: selecting the source is enough (hardware input, no "play" needed)
+        const doPlay = () =>
+          this._callService('media_player', 'media_play', { entity_id: entity }).catch(() => {});
         this._callService('media_player', 'select_source', {
           entity_id: entity,
           source: snap.source,
-        }).catch(() => {});
+        }).then(() => setTimeout(doPlay, 600)).catch(doPlay);
       } else {
         // Streaming source (radio, Spotify, etc.): select source then resume playback
         const doPlay = () =>
@@ -1225,6 +1248,7 @@ class BingoabendSoundboardCard extends HTMLElement {
       </div>
       <div class="body">
         ${this._buildSoundboardSection()}
+        ${this._buildSpotifySection()}
       </div>
     `;
   }
@@ -1244,12 +1268,73 @@ class BingoabendSoundboardCard extends HTMLElement {
     return `<div class="sound-grid">${buttons}</div>`;
   }
 
-  _attachListeners(root) {
-    root.querySelectorAll('.sound-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const idx = parseInt(btn.dataset.idx, 10);
-        this._playSound(idx);
+  _buildSpotifySection() {
+    if (!this._spotifyPlaylists.length) return '';
+    const items = this._spotifyPlaylists.map((p, i) => `
+      <button class="sound-btn" data-playlist-idx="${i}" title="${this._esc(p.title || '')}">
+        ${p.thumbnail
+          ? `<img class="playlist-thumb" src="${this._esc(p.thumbnail)}" alt="">`
+          : `<ha-icon icon="mdi:spotify"></ha-icon>`}
+        <span>${this._esc(p.title || '?')}</span>
+      </button>
+    `).join('');
+    return `<div class="section-label">Spotify</div><div class="sound-grid">${items}</div>`;
+  }
+
+  async _loadSpotifyPlaylists() {
+    const spotifyEntity = this._config.spotify_entity ||
+      Object.keys(this._hass.states).find(e => e.startsWith('media_player.spotify'));
+    if (!spotifyEntity) return;
+    try {
+      const result = await this._hass.callWS({
+        type: 'media_player/browse_media',
+        entity_id: spotifyEntity,
+        media_content_type: 'current_user_playlists',
+        media_content_id: '',
       });
+      this._spotifyPlaylists = result.children || [];
+    } catch (_) {
+      try {
+        const root = await this._hass.callWS({
+          type: 'media_player/browse_media',
+          entity_id: spotifyEntity,
+          media_content_type: 'library',
+          media_content_id: '',
+        });
+        const item = root.children?.find(c => c.media_content_type === 'current_user_playlists');
+        if (item) {
+          const pl = await this._hass.callWS({
+            type: 'media_player/browse_media',
+            entity_id: spotifyEntity,
+            media_content_type: item.media_content_type,
+            media_content_id: item.media_content_id,
+          });
+          this._spotifyPlaylists = pl.children || [];
+        }
+      } catch (e) {
+        console.warn('[Soundboard] Spotify playlists konnte nicht geladen werden:', e);
+      }
+    }
+    this._render();
+  }
+
+  _attachListeners(root) {
+    root.querySelectorAll('.sound-btn[data-idx]').forEach(btn => {
+      btn.addEventListener('click', () => this._playSound(parseInt(btn.dataset.idx, 10)));
+    });
+    root.querySelectorAll('.sound-btn[data-playlist-idx]').forEach(btn => {
+      btn.addEventListener('click', () => this._playPlaylist(parseInt(btn.dataset.playlistIdx, 10)));
+    });
+  }
+
+  _playPlaylist(idx) {
+    const playlist = this._spotifyPlaylists[idx];
+    if (!playlist) return;
+    const entity = this._config.sonos_entity;
+    this._callService('media_player', 'play_media', {
+      entity_id: entity,
+      media_content_id: playlist.media_content_id,
+      media_content_type: playlist.media_content_type,
     });
   }
 
