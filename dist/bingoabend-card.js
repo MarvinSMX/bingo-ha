@@ -1007,6 +1007,18 @@ const SOUNDBOARD_STYLES = `
     --mdc-icon-size: 22px;
     flex-shrink: 0;
   }
+  .browse-btn {
+    margin-left: auto;
+    background: none;
+    border: 1px solid var(--divider-color);
+    border-radius: 8px;
+    padding: 4px 8px;
+    cursor: pointer;
+    color: var(--primary-color);
+    display: flex;
+    align-items: center;
+  }
+  .browse-btn:hover { background: var(--secondary-background-color); }
   .card-header-title {
     font-size: var(--ha-card-header-font-size, clamp(18px, 5cqi, 24px));
     font-weight: var(--ha-card-header-font-weight, normal);
@@ -1087,14 +1099,6 @@ const SOUNDBOARD_STYLES = `
     flex-shrink: 0;
   }
   .body { overflow-y: auto; }
-  #media-browser-wrap {
-    margin-top: 8px;
-    min-height: 120px;
-  }
-  ha-media-player-browse {
-    display: block;
-    --media-browser-max-height: 300px;
-  }
 
   @container soundboard (max-width: 240px) {
     .card-header-title { font-size: 16px; }
@@ -1139,9 +1143,6 @@ class BingoabendSoundboardCard extends HTMLElement {
   set hass(hass) {
     const prevHass = this._hass;
     this._hass = hass;
-
-    // Keep media browser in sync
-    if (this._mediaBrowser) this._mediaBrowser.hass = hass;
 
     if (!this._rendered && this._config) this._render();
 
@@ -1237,26 +1238,15 @@ class BingoabendSoundboardCard extends HTMLElement {
   _render() {
     if (!this._config) return;
 
-    if (!this._rendered) {
-      const style = document.createElement('style');
-      style.textContent = SOUNDBOARD_STYLES;
-      const root = document.createElement('ha-card');
-      root.innerHTML = this._buildHTML();
-      while (this.shadowRoot.firstChild) this.shadowRoot.removeChild(this.shadowRoot.firstChild);
-      this.shadowRoot.appendChild(style);
-      this.shadowRoot.appendChild(root);
-      this._rendered = true;
-      this._attachListeners(root);
-      this._initMediaBrowser(root);
-    } else {
-      // Partial update: just rebuild sound buttons
-      const grid = this.shadowRoot.querySelector('.sound-grid');
-      if (grid) grid.outerHTML = this._buildSoundboardSection();
-      this._attachSoundListeners();
-    }
-
-    // Keep media browser's hass in sync
-    if (this._mediaBrowser && this._hass) this._mediaBrowser.hass = this._hass;
+    const style = document.createElement('style');
+    style.textContent = SOUNDBOARD_STYLES;
+    const root = document.createElement('ha-card');
+    root.innerHTML = this._buildHTML();
+    while (this.shadowRoot.firstChild) this.shadowRoot.removeChild(this.shadowRoot.firstChild);
+    this.shadowRoot.appendChild(style);
+    this.shadowRoot.appendChild(root);
+    this._rendered = true;
+    this._attachListeners(root);
   }
 
   _buildHTML() {
@@ -1265,10 +1255,12 @@ class BingoabendSoundboardCard extends HTMLElement {
       <div class="card-header">
         <ha-icon icon="mdi:music-box-multiple"></ha-icon>
         <div class="card-header-title">${this._esc(this._config.title || 'Soundboard')}</div>
+        ${browseEntity ? `<button class="browse-btn" id="btn-browse" title="Medien durchsuchen">
+          <ha-icon icon="mdi:spotify"></ha-icon>
+        </button>` : ''}
       </div>
       <div class="body">
         ${this._buildSoundboardSection()}
-        ${browseEntity ? `<div class="section-label">Spotify</div><div id="media-browser-wrap"></div>` : ''}
       </div>
     `;
   }
@@ -1286,45 +1278,47 @@ class BingoabendSoundboardCard extends HTMLElement {
     return `<div class="sound-grid">${buttons}</div>`;
   }
 
-  _initMediaBrowser(root) {
-    const wrap = root.querySelector('#media-browser-wrap');
-    if (!wrap) return;
-
+  _openMediaBrowser() {
     const browseEntity = this._config.spotify_entity || this._config.sonos_entity;
     if (!browseEntity) return;
-
-    const create = () => {
-      const browser = document.createElement('ha-media-player-browse');
-      browser.hass = this._hass;
-      browser.entityId = browseEntity;
-      browser.action = 'play';
-      browser.addEventListener('media-picked', (e) => {
-        const item = e.detail.item;
-        this._callService('media_player', 'play_media', {
-          entity_id: this._config.sonos_entity,
-          media_content_id: item.media_content_id,
-          media_content_type: item.media_content_type,
-        });
-      });
-      wrap.appendChild(browser);
-      this._mediaBrowser = browser;
-    };
-
-    if (customElements.get('ha-media-player-browse')) {
-      create();
-    } else {
-      customElements.whenDefined('ha-media-player-browse').then(create);
-    }
+    this.dispatchEvent(new CustomEvent('show-dialog', {
+      bubbles: true,
+      composed: true,
+      detail: {
+        dialogTag: 'dialog-media-player-browse',
+        dialogImport: () => Promise.resolve(),
+        dialogParams: {
+          entityId: browseEntity,
+          mediaPickedCallback: async (picked) => {
+            const item = picked.item;
+            let contentId = item.media_content_id;
+            let contentType = item.media_content_type;
+            if (contentId?.startsWith('media-source://')) {
+              try {
+                const resolved = await this._hass.callWS({
+                  type: 'media_source/resolve_media',
+                  media_content_id: contentId,
+                });
+                contentId = resolved.url;
+                contentType = resolved.mime_type;
+              } catch (_) {}
+            }
+            this._callService('media_player', 'play_media', {
+              entity_id: this._config.sonos_entity,
+              media_content_id: contentId,
+              media_content_type: contentType,
+            });
+          },
+        },
+      },
+    }));
   }
 
   _attachListeners(root) {
-    this._attachSoundListeners();
-  }
-
-  _attachSoundListeners() {
-    this.shadowRoot?.querySelectorAll('.sound-btn[data-idx]').forEach(btn => {
+    root.querySelectorAll('.sound-btn[data-idx]').forEach(btn => {
       btn.addEventListener('click', () => this._playSound(parseInt(btn.dataset.idx, 10)));
     });
+    root.querySelector('#btn-browse')?.addEventListener('click', () => this._openMediaBrowser());
   }
 
   _playSound(idx) {
