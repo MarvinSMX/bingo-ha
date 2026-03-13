@@ -1288,12 +1288,12 @@ class BingoabendSoundboardCard extends HTMLElement {
     const browsePlayer = (type, id) => this._hass.callWS({
       type: 'media_player/browse_media',
       entity_id: sonosEntity,
-      media_content_type: type || '',
-      media_content_id: id || '',
+      ...(type != null ? { media_content_type: type } : {}),
+      ...(id != null ? { media_content_id: id } : {}),
     });
 
     try {
-      const root = await browsePlayer('', '');
+      const root = await browsePlayer(null, null);
       console.log('[Soundboard] Sonos root:', root.children?.map(c => c.title + ' | ' + c.media_content_type + ' | ' + c.media_content_id));
 
       // Find Spotify in root children
