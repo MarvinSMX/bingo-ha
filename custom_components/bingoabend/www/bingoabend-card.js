@@ -352,6 +352,7 @@ class BingoabendCard extends HTMLElement {
     if (this._musicVolume === null && state) {
       const entityPct = Math.round((state.attributes?.volume_level ?? 0.5) * 100);
       this._musicVolume = isMicActive ? 50 : entityPct;
+      window.__bingoMusicVolume = this._musicVolume;
     }
 
     const micPct   = this._micVolume;
@@ -466,6 +467,7 @@ class BingoabendCard extends HTMLElement {
       });
       musicSlider.addEventListener('change', (e) => {
         this._musicVolume = parseInt(e.target.value);
+        window.__bingoMusicVolume = this._musicVolume;
         // Only apply immediately if music is currently active
         const cur = this._hass?.states[this._config.sonos_entity]?.attributes?.source;
         if (cur !== this._config.linein_source) {
@@ -485,6 +487,7 @@ class BingoabendCard extends HTMLElement {
     // Save current entity volume as the music volume before switching
     if (st && st.attributes?.source !== this._config.linein_source) {
       this._musicVolume = Math.round((st.attributes?.volume_level ?? 0.5) * 100);
+      window.__bingoMusicVolume = this._musicVolume;
     }
     this._callService('media_player', 'select_source', {
       entity_id: entity,
@@ -1386,14 +1389,14 @@ class BingoabendSoundboardCard extends HTMLElement {
       entity_id: entity,
       media_content_id: url,
       media_content_type: 'music',
-      extra: { announce: true },
     });
 
-    // If mic is active, first set volume to music level, then play (sequential so Sonos snapshots correct volume)
-    if (isMicActive && this._musicVolume !== null) {
+    // If mic is active, set volume to music level first, then play
+    const musicVol = this._musicVolume ?? window.__bingoMusicVolume ?? null;
+    if (isMicActive && musicVol !== null) {
       this._callService('media_player', 'volume_set', {
         entity_id: entity,
-        volume_level: this._musicVolume / 100,
+        volume_level: musicVol / 100,
       }).then(() => setTimeout(doPlay, 300)).catch(doPlay);
     } else {
       doPlay();
