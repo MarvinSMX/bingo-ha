@@ -489,7 +489,9 @@ class BingoabendCard extends HTMLElement {
     this._callService('media_player', 'select_source', {
       entity_id: entity,
       source: this._config.linein_source,
-    });
+    }).then(() => setTimeout(() =>
+      this._callService('media_player', 'media_play', { entity_id: entity }).catch(() => {}), 600
+    )).catch(() => {});
     this._callService('media_player', 'volume_set', {
       entity_id: this._getGroupMembers(),
       volume_level: this._micVolume / 100,
