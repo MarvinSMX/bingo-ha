@@ -506,10 +506,6 @@ class BingoabendCard extends HTMLElement {
     } else {
       this._callService('media_player', 'media_play', { entity_id: entity });
     }
-    this._callService('media_player', 'volume_set', {
-      entity_id: this._getGroupMembers(),
-      volume_level: (this._musicVolume ?? 50) / 100,
-    });
   }
 
   // ─── Util ────────────────────────────────────────────────────────────────
@@ -1167,8 +1163,9 @@ class BingoabendSoundboardCard extends HTMLElement {
     // Restore state after soundboard clip:
     //   0 = idle, 1 = armed (waiting for clip to start), 2 = ready (clip playing, waiting for end)
     this._watchPhase = 0;
-    this._snapState = null;   // { source, media_content_id, media_content_type, wasPlaying }
+    this._snapState = null;   // { source, media_content_id, media_content_type, wasPlaying, micVolume }
     this._watchTimer = null;
+    this._musicVolume = null; // last known volume when not in linein/mic mode
   }
 
   static getConfigElement() {
@@ -1194,6 +1191,16 @@ class BingoabendSoundboardCard extends HTMLElement {
   set hass(hass) {
     const prevHass = this._hass;
     this._hass = hass;
+
+    // Track music volume whenever the entity is NOT in mic/linein mode
+    const _entity = this._config?.sonos_entity;
+    if (_entity && this._watchPhase === 0) {
+      const st = hass.states[_entity];
+      const linein = this._config.linein_source ?? null;
+      if (st && st.attributes?.source !== linein) {
+        this._musicVolume = Math.round((st.attributes?.volume_level ?? 0.5) * 100);
+      }
+    }
 
     if (this._watchPhase > 0) {
       const entity = this._config?.sonos_entity;
@@ -1236,6 +1243,13 @@ class BingoabendSoundboardCard extends HTMLElement {
           entity_id: entity,
           source: snap.source,
         }).catch(() => {});
+        // Restore mic volume
+        if (snap.micVolume !== null) {
+          this._callService('media_player', 'volume_set', {
+            entity_id: entity,
+            volume_level: snap.micVolume / 100,
+          }).catch(() => {});
+        }
       } else {
         // Streaming source (radio, Spotify, etc.): select source then resume playback
         const doPlay = () =>
@@ -1340,12 +1354,17 @@ class BingoabendSoundboardCard extends HTMLElement {
     const st = this._hass?.states[entity];
     const attrs = st?.attributes ?? {};
 
+    const linein = this._config.linein_source ?? null;
+    const isMicActive = linein && attrs.source === linein;
+    const currentVolumePct = Math.round((attrs.volume_level ?? 0.5) * 100);
+
     // Full snapshot so we can restore regardless of whether announce: true works
     this._snapState = {
       source:             attrs.source             ?? null,
       media_content_id:   attrs.media_content_id   ?? null,
       media_content_type: attrs.media_content_type ?? null,
       wasPlaying:         st?.state === 'playing',
+      micVolume:          isMicActive ? currentVolumePct : null,
     };
     this._watchPhase = 1;
     this._clearWatchTimer();
@@ -1354,6 +1373,14 @@ class BingoabendSoundboardCard extends HTMLElement {
       this._watchPhase = 0;
       this._doRestore();
     }, 60000);
+
+    // If mic is active, set volume to music volume before playing
+    if (isMicActive && this._musicVolume !== null) {
+      this._callService('media_player', 'volume_set', {
+        entity_id: entity,
+        volume_level: this._musicVolume / 100,
+      });
+    }
 
     let url = sound.url;
     if (url.startsWith('/')) {
