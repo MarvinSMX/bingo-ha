@@ -1289,22 +1289,34 @@ class BingoabendSoundboardCard extends HTMLElement {
       return;
     }
 
-    const browseSource = (id) => this._hass.callWS({
+    const browse = (id) => this._hass.callWS({
       type: 'media_source/browse_media',
-      media_content_id: id,
+      ...(id ? { media_content_id: id } : {}),
     });
 
     try {
-      const root = await browseSource('media-source://spotify/');
-      console.log('[Soundboard] Spotify root children:', root.children?.map(c => c.title + ' | ' + c.media_content_id));
+      // Browse media source root to find Spotify entry
+      const root = await browse(null);
+      console.log('[Soundboard] Media source root:', root.children?.map(c => c.title + ' | ' + c.media_content_id));
 
-      let playlists = root.children || [];
+      const spotifyItem = root.children?.find(c =>
+        (c.media_content_id || '').toLowerCase().includes('spotify') ||
+        (c.title || '').toLowerCase().includes('spotify')
+      );
+      if (!spotifyItem) throw new Error('Spotify nicht in Media Library gefunden');
+
+      // Browse Spotify root
+      const spotifyRoot = await browse(spotifyItem.media_content_id);
+      console.log('[Soundboard] Spotify children:', spotifyRoot.children?.map(c => c.title + ' | ' + c.media_content_id));
+
+      // Find playlists section
+      let playlists = spotifyRoot.children || [];
       const playlistsItem = playlists.find(c =>
-        (c.media_content_id || '').includes('current_user_playlists') ||
+        (c.media_content_id || '').toLowerCase().includes('playlist') ||
         (c.title || '').toLowerCase().includes('playlist')
       );
       if (playlistsItem?.can_expand) {
-        const sub = await browseSource(playlistsItem.media_content_id);
+        const sub = await browse(playlistsItem.media_content_id);
         playlists = sub.children || [];
       }
 
@@ -1314,10 +1326,10 @@ class BingoabendSoundboardCard extends HTMLElement {
         this._render();
         return;
       }
+      throw new Error('Keine Playlists gefunden');
     } catch (e) {
       console.warn('[Soundboard] Spotify laden fehlgeschlagen:', e);
     }
-    console.warn('[Soundboard] Keine Spotify Playlists gefunden. Entity:', spotifyEntity);
   }
 
   _attachListeners(root) {
