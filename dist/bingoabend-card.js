@@ -1019,6 +1019,7 @@ const SOUNDBOARD_STYLES = `
     align-items: center;
   }
   .browse-btn:hover { background: var(--secondary-background-color); }
+  .browse-btn.active { background: var(--primary-color); color: var(--text-primary-color, #fff); border-color: var(--primary-color); }
   .card-header-title {
     font-size: var(--ha-card-header-font-size, clamp(18px, 5cqi, 24px));
     font-weight: var(--ha-card-header-font-weight, normal);
@@ -1036,6 +1037,18 @@ const SOUNDBOARD_STYLES = `
     min-height: 0;
     padding: 8px 16px 16px;
     overflow: hidden;
+  }
+  .browser-panel {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  ::slotted([slot=browser]) {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
   }
 
   .sound-grid {
@@ -1118,6 +1131,8 @@ class BingoabendSoundboardCard extends HTMLElement {
     this._snapState = null;   // { source, media_content_id, media_content_type, wasPlaying }
     this._watchTimer = null;
     this._playingPlaylist = null;
+    this._browserOpen = false;
+    this._browserEl = null;
   }
 
   static getConfigElement() {
@@ -1145,6 +1160,7 @@ class BingoabendSoundboardCard extends HTMLElement {
     this._hass = hass;
 
     if (!this._rendered && this._config) this._render();
+    if (this._browserEl) this._browserEl.hass = hass;
 
     if (this._watchPhase > 0) {
       const entity = this._config?.sonos_entity;
@@ -1251,17 +1267,18 @@ class BingoabendSoundboardCard extends HTMLElement {
 
   _buildHTML() {
     const browseEntity = this._config.spotify_entity || this._config.sonos_entity;
+    const open = this._browserOpen;
     return `
       <div class="card-header">
         <ha-icon icon="mdi:music-box-multiple"></ha-icon>
         <div class="card-header-title">${this._esc(this._config.title || 'Soundboard')}</div>
-        ${browseEntity ? `<button class="browse-btn" id="btn-browse" title="Medien durchsuchen">
-          <ha-icon icon="mdi:spotify"></ha-icon>
+        ${browseEntity ? `<button class="browse-btn${open ? ' active' : ''}" id="btn-browse" title="Medien durchsuchen">
+          <ha-icon icon="${open ? 'mdi:close' : 'mdi:spotify'}"></ha-icon>
         </button>` : ''}
       </div>
-      <div class="body">
-        ${this._buildSoundboardSection()}
-      </div>
+      ${open
+        ? `<div class="browser-panel"><slot name="browser"></slot></div>`
+        : `<div class="body">${this._buildSoundboardSection()}</div>`}
     `;
   }
 
@@ -1278,67 +1295,62 @@ class BingoabendSoundboardCard extends HTMLElement {
     return `<div class="sound-grid">${buttons}</div>`;
   }
 
-  _openMediaBrowser() {
+  _reRenderBody() {
+    const root = this.shadowRoot.querySelector('ha-card');
+    if (!root) return;
+    root.innerHTML = this._buildHTML();
+    this._attachListeners(root);
+  }
+
+  _toggleBrowser() {
     const browseEntity = this._config.spotify_entity || this._config.sonos_entity;
     if (!browseEntity) return;
 
-    // Create overlay in document.body — avoids shadow DOM scoped registry conflicts
-    const overlay = document.createElement('div');
-    overlay.style.cssText = [
-      'position:fixed;inset:0;z-index:9999',
-      'background:rgba(0,0,0,0.6)',
-      'display:flex;align-items:center;justify-content:center',
-    ].join(';');
+    this._browserOpen = !this._browserOpen;
 
-    const panel = document.createElement('div');
-    panel.style.cssText = [
-      'background:var(--card-background-color,#fff)',
-      'border-radius:12px',
-      'width:min(640px,95vw)',
-      'height:min(560px,88vh)',
-      'display:flex;flex-direction:column;overflow:hidden',
-    ].join(';');
-
-    const close = () => document.body.contains(overlay) && document.body.removeChild(overlay);
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
-
-    const create = () => {
-      const browser = document.createElement('ha-media-player-browse');
-      browser.hass = this._hass;
-      browser.entityId = browseEntity;
-      browser.action = 'play';
-      browser.style.cssText = 'flex:1;min-height:0;overflow:auto';
-      browser.addEventListener('media-picked', async (e) => {
-        close();
-        const item = e.detail.item;
-        let contentId = item.media_content_id;
-        let contentType = item.media_content_type;
-        if (contentId?.startsWith('media-source://')) {
-          try {
-            const resolved = await this._hass.callWS({
-              type: 'media_source/resolve_media',
-              media_content_id: contentId,
-            });
-            contentId = resolved.url;
-            contentType = resolved.mime_type;
-          } catch (_) {}
-        }
-        this._callService('media_player', 'play_media', {
-          entity_id: this._config.sonos_entity,
-          media_content_id: contentId,
-          media_content_type: contentType,
+    // Create browser element once — lives in light DOM (slot avoids shadow-registry conflicts)
+    if (this._browserOpen && !this._browserEl) {
+      const create = () => {
+        const browser = document.createElement('ha-media-player-browse');
+        browser.setAttribute('slot', 'browser');
+        browser.hass = this._hass;
+        browser.entityId = browseEntity;
+        browser.action = 'play';
+        browser.addEventListener('media-picked', async (e) => {
+          this._browserOpen = false;
+          this._reRenderBody();
+          const item = e.detail.item;
+          let contentId = item.media_content_id;
+          let contentType = item.media_content_type;
+          if (contentId?.startsWith('media-source://')) {
+            try {
+              const resolved = await this._hass.callWS({
+                type: 'media_source/resolve_media',
+                media_content_id: contentId,
+              });
+              contentId = resolved.url;
+              contentType = resolved.mime_type;
+            } catch (_) {}
+          }
+          this._callService('media_player', 'play_media', {
+            entity_id: this._config.sonos_entity,
+            media_content_id: contentId,
+            media_content_type: contentType,
+          });
         });
-      });
-      panel.appendChild(browser);
-      overlay.appendChild(panel);
-      document.body.appendChild(overlay);
-    };
-
-    if (customElements.get('ha-media-player-browse')) {
-      create();
-    } else {
-      customElements.whenDefined('ha-media-player-browse').then(create);
+        this._browserEl = browser;
+        this.appendChild(browser);
+        this._reRenderBody();
+      };
+      if (customElements.get('ha-media-player-browse')) {
+        create();
+      } else {
+        customElements.whenDefined('ha-media-player-browse').then(create);
+      }
+      return; // _reRenderBody called inside create()
     }
+
+    this._reRenderBody();
   }
 
   _attachListeners(root) {
@@ -1348,7 +1360,7 @@ class BingoabendSoundboardCard extends HTMLElement {
         this._playSound(parseInt(btn.dataset.idx, 10));
       });
     });
-    root.querySelector('#btn-browse')?.addEventListener('click', () => this._openMediaBrowser());
+    root.querySelector('#btn-browse')?.addEventListener('click', () => this._toggleBrowser());
   }
 
   _playSound(idx) {
