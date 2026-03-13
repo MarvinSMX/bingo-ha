@@ -1284,38 +1284,49 @@ class BingoabendSoundboardCard extends HTMLElement {
   async _loadSpotifyPlaylists() {
     const spotifyEntity = this._config.spotify_entity ||
       Object.keys(this._hass.states).find(e => e.startsWith('media_player.spotify'));
-    if (!spotifyEntity) return;
-    try {
-      const result = await this._hass.callWS({
-        type: 'media_player/browse_media',
-        entity_id: spotifyEntity,
-        media_content_type: 'current_user_playlists',
-        media_content_id: '',
-      });
-      this._spotifyPlaylists = result.children || [];
-    } catch (_) {
-      try {
-        const root = await this._hass.callWS({
-          type: 'media_player/browse_media',
-          entity_id: spotifyEntity,
-          media_content_type: 'library',
-          media_content_id: '',
-        });
-        const item = root.children?.find(c => c.media_content_type === 'current_user_playlists');
-        if (item) {
-          const pl = await this._hass.callWS({
-            type: 'media_player/browse_media',
-            entity_id: spotifyEntity,
-            media_content_type: item.media_content_type,
-            media_content_id: item.media_content_id,
-          });
-          this._spotifyPlaylists = pl.children || [];
-        }
-      } catch (e) {
-        console.warn('[Soundboard] Spotify playlists konnte nicht geladen werden:', e);
-      }
+    if (!spotifyEntity) {
+      console.warn('[Soundboard] Kein Spotify Entity gefunden');
+      return;
     }
-    this._render();
+
+    const browse = (type, id) => this._hass.callWS({
+      type: 'media_player/browse_media',
+      entity_id: spotifyEntity,
+      ...(type != null && { media_content_type: type }),
+      ...(id != null && { media_content_id: id }),
+    });
+
+    // Strategy 1: direct current_user_playlists
+    // Strategy 2: browse root, find playlists item in children, browse that
+    // Strategy 3: root children are already playlists
+    const strategies = [
+      () => browse('current_user_playlists', ''),
+      async () => {
+        const root = await browse(null, null);
+        console.log('[Soundboard] Spotify root children:', root.children?.map(c => c.media_content_type + '/' + c.title));
+        const item = root.children?.find(c =>
+          c.media_content_type === 'current_user_playlists' ||
+          (c.title || '').toLowerCase().includes('playlist')
+        );
+        if (item && item.can_expand) return browse(item.media_content_type, item.media_content_id);
+        if (root.children?.length) { return root; } // root IS the playlist list
+        throw new Error('no playlist item found');
+      },
+    ];
+
+    for (const strategy of strategies) {
+      try {
+        const result = await strategy();
+        const children = result.children || [];
+        if (children.length > 0) {
+          this._spotifyPlaylists = children;
+          console.log('[Soundboard] Spotify Playlists geladen:', children.length);
+          this._render();
+          return;
+        }
+      } catch (_) { /* try next */ }
+    }
+    console.warn('[Soundboard] Spotify Playlists konnten nicht geladen werden. Entity:', spotifyEntity);
   }
 
   _attachListeners(root) {
