@@ -1087,6 +1087,14 @@ const SOUNDBOARD_STYLES = `
     flex-shrink: 0;
   }
   .body { overflow-y: auto; }
+  #media-browser-wrap {
+    margin-top: 8px;
+    min-height: 120px;
+  }
+  ha-media-player-browse {
+    display: block;
+    --media-browser-max-height: 300px;
+  }
 
   @container soundboard (max-width: 240px) {
     .card-header-title { font-size: 16px; }
@@ -1105,8 +1113,7 @@ class BingoabendSoundboardCard extends HTMLElement {
     this._watchPhase = 0;
     this._snapState = null;   // { source, media_content_id, media_content_type, wasPlaying }
     this._watchTimer = null;
-    this._spotifyPlaylists = [];
-    this._spotifyLoaded = false;
+    this._playingPlaylist = null;
   }
 
   static getConfigElement() {
@@ -1133,10 +1140,10 @@ class BingoabendSoundboardCard extends HTMLElement {
     const prevHass = this._hass;
     this._hass = hass;
 
-    if (!this._spotifyLoaded) {
-      this._spotifyLoaded = true;
-      this._loadSpotifyPlaylists();
-    }
+    // Keep media browser in sync
+    if (this._mediaBrowser) this._mediaBrowser.hass = hass;
+
+    if (!this._rendered && this._config) this._render();
 
     if (this._watchPhase > 0) {
       const entity = this._config?.sonos_entity;
@@ -1229,18 +1236,31 @@ class BingoabendSoundboardCard extends HTMLElement {
 
   _render() {
     if (!this._config) return;
-    const style = document.createElement('style');
-    style.textContent = SOUNDBOARD_STYLES;
-    const root = document.createElement('ha-card');
-    root.innerHTML = this._buildHTML();
-    while (this.shadowRoot.firstChild) this.shadowRoot.removeChild(this.shadowRoot.firstChild);
-    this.shadowRoot.appendChild(style);
-    this.shadowRoot.appendChild(root);
-    this._rendered = true;
-    this._attachListeners(root);
+
+    if (!this._rendered) {
+      const style = document.createElement('style');
+      style.textContent = SOUNDBOARD_STYLES;
+      const root = document.createElement('ha-card');
+      root.innerHTML = this._buildHTML();
+      while (this.shadowRoot.firstChild) this.shadowRoot.removeChild(this.shadowRoot.firstChild);
+      this.shadowRoot.appendChild(style);
+      this.shadowRoot.appendChild(root);
+      this._rendered = true;
+      this._attachListeners(root);
+      this._initMediaBrowser(root);
+    } else {
+      // Partial update: just rebuild sound buttons
+      const grid = this.shadowRoot.querySelector('.sound-grid');
+      if (grid) grid.outerHTML = this._buildSoundboardSection();
+      this._attachSoundListeners();
+    }
+
+    // Keep media browser's hass in sync
+    if (this._mediaBrowser && this._hass) this._mediaBrowser.hass = this._hass;
   }
 
   _buildHTML() {
+    const browseEntity = this._config.spotify_entity || this._config.sonos_entity;
     return `
       <div class="card-header">
         <ha-icon icon="mdi:music-box-multiple"></ha-icon>
@@ -1248,16 +1268,14 @@ class BingoabendSoundboardCard extends HTMLElement {
       </div>
       <div class="body">
         ${this._buildSoundboardSection()}
-        ${this._buildSpotifySection()}
+        ${browseEntity ? `<div class="section-label">Spotify</div><div id="media-browser-wrap"></div>` : ''}
       </div>
     `;
   }
 
   _buildSoundboardSection() {
     const sounds = this._config.sounds || [];
-    if (sounds.length === 0) {
-      return `<div class="no-sounds">Keine Sounds konfiguriert</div>`;
-    }
+    if (sounds.length === 0) return `<div class="no-sounds">Keine Sounds konfiguriert</div>`;
     const buttons = sounds.map((s, i) => `
       <button class="sound-btn${this._playingIdx === i ? ' playing' : ''}" data-idx="${i}"
               title="${this._esc(s.name || '')}">
@@ -1268,85 +1286,44 @@ class BingoabendSoundboardCard extends HTMLElement {
     return `<div class="sound-grid">${buttons}</div>`;
   }
 
-  _buildSpotifySection() {
-    if (!this._spotifyPlaylists.length) return '';
-    const items = this._spotifyPlaylists.map((p, i) => `
-      <button class="sound-btn" data-playlist-idx="${i}" title="${this._esc(p.title || '')}">
-        ${p.thumbnail
-          ? `<img class="playlist-thumb" src="${this._esc(p.thumbnail)}" alt="">`
-          : `<ha-icon icon="mdi:spotify"></ha-icon>`}
-        <span>${this._esc(p.title || '?')}</span>
-      </button>
-    `).join('');
-    return `<div class="section-label">Spotify</div><div class="sound-grid">${items}</div>`;
-  }
+  _initMediaBrowser(root) {
+    const wrap = root.querySelector('#media-browser-wrap');
+    if (!wrap) return;
 
-  async _loadSpotifyPlaylists() {
-    const sonosEntity = this._config.sonos_entity;
+    const browseEntity = this._config.spotify_entity || this._config.sonos_entity;
+    if (!browseEntity) return;
 
-    // Browse via the Sonos media player entity — same as the built-in media player card
-    const browsePlayer = (type, id) => this._hass.callWS({
-      type: 'media_player/browse_media',
-      entity_id: sonosEntity,
-      ...(type != null ? { media_content_type: type } : {}),
-      ...(id != null ? { media_content_id: id } : {}),
-    });
+    const create = () => {
+      const browser = document.createElement('ha-media-player-browse');
+      browser.hass = this._hass;
+      browser.entityId = browseEntity;
+      browser.action = 'play';
+      browser.addEventListener('media-picked', (e) => {
+        const item = e.detail.item;
+        this._callService('media_player', 'play_media', {
+          entity_id: this._config.sonos_entity,
+          media_content_id: item.media_content_id,
+          media_content_type: item.media_content_type,
+        });
+      });
+      wrap.appendChild(browser);
+      this._mediaBrowser = browser;
+    };
 
-    try {
-      const root = await browsePlayer(null, null);
-      console.log('[Soundboard] Sonos root:', root.children?.map(c => c.title + ' | ' + c.media_content_type + ' | ' + c.media_content_id));
-
-      // Find Spotify in root children
-      const spotifyItem = root.children?.find(c =>
-        (c.title || '').toLowerCase().includes('spotify') ||
-        (c.media_content_id || '').toLowerCase().includes('spotify')
-      );
-      if (!spotifyItem) throw new Error('Spotify nicht in Sonos Media Browser');
-
-      // Browse Spotify root
-      const spotifyRoot = await browsePlayer(spotifyItem.media_content_type, spotifyItem.media_content_id);
-      console.log('[Soundboard] Spotify root:', spotifyRoot.children?.map(c => c.title + ' | ' + c.media_content_type + ' | ' + c.media_content_id));
-
-      // Find playlists section (My Playlists / Playlists)
-      let playlists = spotifyRoot.children || [];
-      const playlistsItem = playlists.find(c =>
-        (c.title || '').toLowerCase().includes('playlist') ||
-        (c.media_content_id || '').toLowerCase().includes('playlist')
-      );
-      if (playlistsItem?.can_expand !== false) {
-        const sub = await browsePlayer(playlistsItem.media_content_type, playlistsItem.media_content_id);
-        playlists = sub.children || [];
-      }
-
-      if (playlists.length > 0) {
-        this._spotifyPlaylists = playlists;
-        console.log('[Soundboard] Spotify Playlists geladen:', playlists.length);
-        this._render();
-        return;
-      }
-      throw new Error('Keine Playlists in Spotify gefunden');
-    } catch (e) {
-      console.warn('[Soundboard] Spotify laden fehlgeschlagen:', e);
+    if (customElements.get('ha-media-player-browse')) {
+      create();
+    } else {
+      customElements.whenDefined('ha-media-player-browse').then(create);
     }
   }
 
   _attachListeners(root) {
-    root.querySelectorAll('.sound-btn[data-idx]').forEach(btn => {
-      btn.addEventListener('click', () => this._playSound(parseInt(btn.dataset.idx, 10)));
-    });
-    root.querySelectorAll('.sound-btn[data-playlist-idx]').forEach(btn => {
-      btn.addEventListener('click', () => this._playPlaylist(parseInt(btn.dataset.playlistIdx, 10)));
-    });
+    this._attachSoundListeners();
   }
 
-  _playPlaylist(idx) {
-    const playlist = this._spotifyPlaylists[idx];
-    if (!playlist) return;
-    const entity = this._config.sonos_entity;
-    this._callService('media_player', 'play_media', {
-      entity_id: entity,
-      media_content_id: playlist.media_content_id,
-      media_content_type: playlist.media_content_type,
+  _attachSoundListeners() {
+    this.shadowRoot?.querySelectorAll('.sound-btn[data-idx]').forEach(btn => {
+      btn.addEventListener('click', () => this._playSound(parseInt(btn.dataset.idx, 10)));
     });
   }
 
