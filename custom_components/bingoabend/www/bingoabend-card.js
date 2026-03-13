@@ -128,52 +128,6 @@ const STYLES = `
     border-width: 2px;
   }
 
-  /* ── Status badge ── */
-  .status-row {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .status-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    padding: 5px 14px;
-    border-radius: 20px;
-    font-size: clamp(10px, 2.5cqi, 12px);
-    font-weight: 700;
-    letter-spacing: 0.9px;
-    text-transform: uppercase;
-  }
-  .status-badge.on-air {
-    background: rgba(var(--rgb-error-color, 211,47,47), 0.12);
-    color: var(--error-color, #d32f2f);
-  }
-  .status-badge.music-mode {
-    background: rgba(var(--rgb-primary-color, 3,169,244), 0.1);
-    color: var(--primary-color);
-  }
-  .status-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: currentColor;
-    flex-shrink: 0;
-  }
-  .status-badge.on-air .status-dot {
-    animation: pulse-dot 1.4s ease-in-out infinite;
-  }
-  @keyframes pulse-dot {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.35; transform: scale(0.65); }
-  }
-  .status-source {
-    font-size: clamp(9px, 2.2cqi, 11px);
-    font-weight: 500;
-    opacity: 0.75;
-  }
-
   /* ── Volume ── */
   .volume-section {
     flex-shrink: 0;
@@ -236,7 +190,6 @@ const STYLES = `
   @container bingo (max-width: 240px) {
     .card-header-title { font-size: 15px; }
     .source-btn .btn-label { display: none; }
-    .status-source { display: none; }
   }
 `;
 
@@ -424,14 +377,6 @@ class BingoabendCard extends HTMLElement {
             <span class="btn-label">Musik</span>
           </button>
         </div>
-        ${state ? `
-        <div class="status-row">
-          <div class="status-badge ${isMicActive ? 'on-air' : 'music-mode'}" id="status-badge">
-            <div class="status-dot"></div>
-            <span>${isMicActive ? 'ON AIR' : 'Musik-Modus'}</span>
-            ${sourceName ? `<span class="status-source">· ${this._esc(sourceName)}</span>` : ''}
-          </div>
-        </div>` : ''}
         <div class="volume-section">
           <div class="volume-row vol-mic${isMicActive ? '' : ' inactive'}">
             <ha-icon icon="mdi:microphone"></ha-icon>
@@ -461,17 +406,6 @@ class BingoabendCard extends HTMLElement {
     const btnMusic = this.shadowRoot.querySelector('#btn-music');
     if (btnMic)   btnMic.className   = `source-btn ${isMicActive ? 'active-mic' : ''}`;
     if (btnMusic) btnMusic.className = `source-btn ${(!isMicActive && state) ? 'active-music' : ''}`;
-
-    const badge = this.shadowRoot.querySelector('#status-badge');
-    if (badge) {
-      badge.className = `status-badge ${isMicActive ? 'on-air' : 'music-mode'}`;
-      const sourceName = (!isMicActive && currentSource) ? currentSource : null;
-      badge.innerHTML = `
-        <div class="status-dot"></div>
-        <span>${isMicActive ? 'ON AIR' : 'Musik-Modus'}</span>
-        ${sourceName ? `<span class="status-source">· ${this._esc(sourceName)}</span>` : ''}
-      `;
-    }
 
     // Sync the ACTIVE mode's slider from entity state
     const currentPct = Math.round((state?.attributes?.volume_level ?? 0.5) * 100);
@@ -518,7 +452,7 @@ class BingoabendCard extends HTMLElement {
         const cur = this._hass?.states[this._config.sonos_entity]?.attributes?.source;
         if (cur === this._config.linein_source) {
           this._callService('media_player', 'volume_set', {
-            entity_id: this._config.sonos_entity, volume_level: this._micVolume / 100,
+            entity_id: this._getGroupMembers(), volume_level: this._micVolume / 100,
           });
         }
       });
@@ -536,7 +470,7 @@ class BingoabendCard extends HTMLElement {
         const cur = this._hass?.states[this._config.sonos_entity]?.attributes?.source;
         if (cur !== this._config.linein_source) {
           this._callService('media_player', 'volume_set', {
-            entity_id: this._config.sonos_entity, volume_level: this._musicVolume / 100,
+            entity_id: this._getGroupMembers(), volume_level: this._musicVolume / 100,
           });
         }
       });
@@ -557,7 +491,7 @@ class BingoabendCard extends HTMLElement {
       source: this._config.linein_source,
     });
     this._callService('media_player', 'volume_set', {
-      entity_id: entity,
+      entity_id: this._getGroupMembers(),
       volume_level: this._micVolume / 100,
     });
   }
@@ -573,12 +507,20 @@ class BingoabendCard extends HTMLElement {
       this._callService('media_player', 'media_play', { entity_id: entity });
     }
     this._callService('media_player', 'volume_set', {
-      entity_id: entity,
+      entity_id: this._getGroupMembers(),
       volume_level: (this._musicVolume ?? 50) / 100,
     });
   }
 
   // ─── Util ────────────────────────────────────────────────────────────────
+
+  // Returns all group members (including the configured entity itself).
+  // Sonos exposes grouped speakers via the group_members attribute.
+  _getGroupMembers() {
+    const entity = this._config.sonos_entity;
+    const members = this._hass?.states[entity]?.attributes?.group_members;
+    return (Array.isArray(members) && members.length > 0) ? members : [entity];
+  }
 
   _callService(domain, service, data) {
     if (!this._hass) return Promise.reject('hass not ready');
