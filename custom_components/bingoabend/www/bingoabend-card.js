@@ -1376,26 +1376,28 @@ class BingoabendSoundboardCard extends HTMLElement {
       this._doRestore();
     }, 60000);
 
-    // If mic is active, set volume to music volume before playing
-    if (isMicActive && this._musicVolume !== null) {
-      this._callService('media_player', 'volume_set', {
-        entity_id: entity,
-        volume_level: this._musicVolume / 100,
-      });
-    }
-
     let url = sound.url;
     if (url.startsWith('/')) {
       const base = (this._config.base_url || window.location.origin).replace(/\/$/, '');
       url = base + url;
     }
 
-    this._callService('media_player', 'play_media', {
+    const doPlay = () => this._callService('media_player', 'play_media', {
       entity_id: entity,
       media_content_id: url,
       media_content_type: 'music',
       extra: { announce: true },
     });
+
+    // If mic is active, first set volume to music level, then play (sequential so Sonos snapshots correct volume)
+    if (isMicActive && this._musicVolume !== null) {
+      this._callService('media_player', 'volume_set', {
+        entity_id: entity,
+        volume_level: this._musicVolume / 100,
+      }).then(() => setTimeout(doPlay, 300)).catch(doPlay);
+    } else {
+      doPlay();
+    }
 
     // Brief visual feedback
     this._playingIdx = idx;
