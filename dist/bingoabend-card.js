@@ -42,15 +42,16 @@ const STYLES = `
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 16px 16px 0;
+    padding: 14px 16px 0;
+    flex-shrink: 0;
   }
   .card-header ha-icon {
     color: var(--primary-color);
-    --mdc-icon-size: 22px;
+    --mdc-icon-size: 20px;
     flex-shrink: 0;
   }
   .card-header-title {
-    font-size: var(--ha-card-header-font-size, clamp(18px, 5cqi, 24px));
+    font-size: var(--ha-card-header-font-size, clamp(16px, 4.5cqi, 22px));
     font-weight: var(--ha-card-header-font-weight, normal);
     color: var(--ha-card-header-color, var(--primary-text-color));
     flex: 1;
@@ -61,96 +62,140 @@ const STYLES = `
     text-overflow: ellipsis;
   }
 
-  /* ── Sections wrapper ── */
-  .sections {
+  /* ── Content wrapper ── */
+  .content {
     flex: 1;
     min-height: 0;
-    padding: 8px 16px 16px;
+    padding: 10px 14px 14px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
     overflow: hidden;
   }
 
-  .section-label {
-    font-size: 11px;
-    font-weight: 500;
-    letter-spacing: 0.6px;
-    text-transform: uppercase;
-    color: var(--secondary-text-color);
-    margin-bottom: 8px;
-  }
-
-  hr {
-    border: none;
-    border-top: 1px solid var(--divider-color);
-    margin: 0;
-  }
-
-  /* ── Audio source toggle ── */
+  /* ── Source toggle: fills available height ── */
   .source-toggle {
+    flex: 1;
+    min-height: 0;
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 8px;
   }
   .source-btn {
-    padding: clamp(8px, 2%, 14px) 8px;
-    border-radius: var(--ha-card-border-radius, 12px);
-    border: 1px solid var(--divider-color);
-    background: var(--secondary-background-color, var(--primary-background-color));
-    cursor: pointer;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 5px;
-    transition: background 0.15s, border-color 0.15s;
+    justify-content: center;
+    gap: clamp(4px, 1.5cqi, 8px);
+    padding: 8px 6px;
+    border-radius: var(--ha-card-border-radius, 14px);
+    border: 2px solid var(--divider-color);
+    background: var(--secondary-background-color, var(--primary-background-color));
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
     color: var(--secondary-text-color);
     font-family: inherit;
     min-width: 0;
   }
-  .source-btn ha-icon { --mdc-icon-size: clamp(20px, 6cqi, 28px); }
-  .source-btn span {
-    font-size: clamp(11px, 3cqi, 13px);
-    font-weight: 500;
+  .source-btn ha-icon {
+    --mdc-icon-size: clamp(28px, 8cqi, 42px);
+    transition: color 0.2s;
+  }
+  .source-btn .btn-label {
+    font-size: clamp(10px, 2.8cqi, 13px);
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
     white-space: nowrap;
   }
+
+  /* Active mic — red */
   .source-btn.active-mic {
-    background: rgba(var(--rgb-error-color, 211,47,47), 0.12);
+    background: rgba(var(--rgb-error-color, 211,47,47), 0.13);
     border-color: var(--error-color, #d32f2f);
     color: var(--error-color, #d32f2f);
+    border-width: 2px;
   }
-  .source-btn.active-music {
-    background: rgba(var(--rgb-success-color, 67,160,71), 0.12);
-    border-color: var(--success-color, #43a047);
-    color: var(--success-color, #43a047);
+  .source-btn.active-mic ha-icon {
+    filter: drop-shadow(0 0 5px rgba(211,47,47,0.45));
   }
 
-  .mic-status {
-    margin-top: 6px;
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--secondary-text-color);
-    text-align: center;
+  /* Active music — primary */
+  .source-btn.active-music {
+    background: rgba(var(--rgb-primary-color, 3,169,244), 0.13);
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    border-width: 2px;
   }
-  .mic-status.on-air {
+
+  /* ── Status badge ── */
+  .status-row {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-size: clamp(10px, 2.5cqi, 12px);
+    font-weight: 700;
+    letter-spacing: 0.9px;
+    text-transform: uppercase;
+  }
+  .status-badge.on-air {
+    background: rgba(var(--rgb-error-color, 211,47,47), 0.12);
     color: var(--error-color, #d32f2f);
-    animation: blink 1.5s infinite;
   }
-  @keyframes blink {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+  .status-badge.music-mode {
+    background: rgba(var(--rgb-primary-color, 3,169,244), 0.1);
+    color: var(--primary-color);
+  }
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+    flex-shrink: 0;
+  }
+  .status-badge.on-air .status-dot {
+    animation: pulse-dot 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.35; transform: scale(0.65); }
+  }
+  .status-source {
+    font-size: clamp(9px, 2.2cqi, 11px);
+    font-weight: 500;
+    opacity: 0.75;
   }
 
   /* ── Volume ── */
+  .volume-section {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
   .volume-row {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
+    transition: opacity 0.2s;
   }
   .volume-row ha-icon {
-    color: var(--secondary-text-color);
-    --mdc-icon-size: 20px;
+    --mdc-icon-size: 16px;
     flex-shrink: 0;
+  }
+  .volume-row.vol-mic ha-icon { color: var(--error-color, #d32f2f); }
+  .volume-row.vol-music ha-icon { color: var(--primary-color); }
+  .volume-row.inactive {
+    opacity: 0.38;
+    pointer-events: none;
   }
   input[type=range] {
     flex: 1;
@@ -165,30 +210,33 @@ const STYLES = `
   }
   input[type=range]::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 18px;
-    height: 18px;
+    width: 15px;
+    height: 15px;
     border-radius: 50%;
     background: var(--primary-color);
     cursor: pointer;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+  }
+  .volume-row.vol-mic input[type=range]::-webkit-slider-thumb {
+    background: var(--error-color, #d32f2f);
   }
   .volume-value {
-    min-width: 34px;
+    min-width: 30px;
     text-align: right;
-    font-size: 13px;
+    font-size: 11px;
+    font-weight: 600;
     color: var(--primary-text-color);
     flex-shrink: 0;
   }
 
-  /* ── Container query: very narrow card ── */
-  @container bingo (max-width: 280px) {
-    .card-header-title { font-size: 16px; }
-    .source-btn span { display: none; }
-  }
+  /* ── Error ── */
+  ha-alert { display: block; font-size: 12px; flex-shrink: 0; }
 
-  /* ── Container query: wide card ── */
-  @container bingo (min-width: 480px) {
-    .source-btn { flex-direction: row; padding: 10px 16px; gap: 8px; }
+  /* ── Narrow card ── */
+  @container bingo (max-width: 240px) {
+    .card-header-title { font-size: 15px; }
+    .source-btn .btn-label { display: none; }
+    .status-source { display: none; }
   }
 `;
 
@@ -225,6 +273,8 @@ class BingoabendCard extends HTMLElement {
     this.attachShadow({ mode: 'open' });
     this._rendered = false;
     this._lastEntityMissing = null;
+    this._micVolume   = 100; // target volume (0-100) when mic mode is active
+    this._musicVolume = null; // target volume when music mode is active; null = init from entity
   }
 
   static getConfigElement() {
@@ -336,73 +386,63 @@ class BingoabendCard extends HTMLElement {
   }
 
   _buildHTML() {
+    const entity = this._config.sonos_entity;
+    const lineinSource = this._config.linein_source;
+    const state = this._hass?.states[entity];
+    const entityMissing = this._hass != null && !state;
+    const currentSource = state?.attributes?.source;
+    const isMicActive = currentSource === lineinSource;
+    const micClass   = isMicActive ? 'active-mic' : '';
+    const musicClass = (!isMicActive && state) ? 'active-music' : '';
+
+    // Init music volume from entity on first render when in music mode
+    if (this._musicVolume === null && state) {
+      const entityPct = Math.round((state.attributes?.volume_level ?? 0.5) * 100);
+      this._musicVolume = isMicActive ? 50 : entityPct;
+    }
+
+    const micPct   = this._micVolume;
+    const musicPct = this._musicVolume ?? 50;
+
+    // Status badge: show current source name when in music mode
+    const sourceName = (!isMicActive && currentSource) ? currentSource : null;
+
     return `
       <div class="card-header">
         <ha-icon icon="mdi:bingo"></ha-icon>
         <div class="card-header-title">${this._esc(this._config.title || 'Bingoabend')}</div>
       </div>
-      <div class="sections">
-        ${this._buildAudioSection()}
-        <hr>
-        ${this._buildVolumeSection()}
-      </div>
-    `;
-  }
-
-  _buildAudioSection() {
-    const entity = this._config.sonos_entity;
-    const lineinSource = this._config.linein_source;
-
-    // Only show "not found" if hass is available but entity doesn't exist
-    const state = this._hass?.states[entity];
-    const entityMissing = this._hass != null && !state;
-
-    const currentSource = state?.attributes?.source;
-    const isMicActive = currentSource === lineinSource;
-
-    const micClass  = isMicActive ? 'active-mic' : '';
-    const musicClass = (!isMicActive && state) ? 'active-music' : '';
-
-    return `
-      <div id="audio-section">
-        <div class="section-label">Audio Quelle</div>
-        ${entityMissing ? `
-          <ha-alert alert-type="error">
-            Entität <b>${this._esc(entity)}</b> nicht gefunden
-          </ha-alert>
-        ` : ''}
+      <div class="content">
+        ${entityMissing ? `<ha-alert alert-type="error">Entität <b>${this._esc(entity)}</b> nicht gefunden</ha-alert>` : ''}
         <div class="source-toggle">
           <button class="source-btn ${micClass}" id="btn-mic">
             <ha-icon icon="mdi:microphone"></ha-icon>
-            <span>Mikrofon</span>
+            <span class="btn-label">Mikrofon</span>
           </button>
           <button class="source-btn ${musicClass}" id="btn-music">
             <ha-icon icon="mdi:music"></ha-icon>
-            <span>Musik</span>
+            <span class="btn-label">Musik</span>
           </button>
         </div>
-        ${state ? `<div class="mic-status ${isMicActive ? 'on-air' : ''}">
-          ${isMicActive ? '● ON AIR' : '● Musik-Modus'}
+        ${state ? `
+        <div class="status-row">
+          <div class="status-badge ${isMicActive ? 'on-air' : 'music-mode'}" id="status-badge">
+            <div class="status-dot"></div>
+            <span>${isMicActive ? 'ON AIR' : 'Musik-Modus'}</span>
+            ${sourceName ? `<span class="status-source">· ${this._esc(sourceName)}</span>` : ''}
+          </div>
         </div>` : ''}
-      </div>
-    `;
-  }
-
-  _buildVolumeSection() {
-    const entity = this._config.sonos_entity;
-    const state = this._hass?.states[entity];
-    const volume = state?.attributes?.volume_level ?? 0.5;
-    const pct = Math.round(volume * 100);
-    const muted = state?.attributes?.is_volume_muted ?? false;
-    const icon = muted ? 'mdi:volume-mute' : pct < 30 ? 'mdi:volume-low' : pct < 70 ? 'mdi:volume-medium' : 'mdi:volume-high';
-
-    return `
-      <div>
-        <div class="section-label">Lautstärke</div>
-        <div class="volume-row">
-          <ha-icon icon="${icon}"></ha-icon>
-          <input type="range" id="volume-slider" min="0" max="100" step="2" value="${pct}">
-          <div class="volume-value" id="volume-value">${pct}%</div>
+        <div class="volume-section">
+          <div class="volume-row vol-mic${isMicActive ? '' : ' inactive'}">
+            <ha-icon icon="mdi:microphone"></ha-icon>
+            <input type="range" id="vol-mic-slider" min="0" max="100" step="2" value="${micPct}">
+            <div class="volume-value" id="vol-mic-value">${micPct}%</div>
+          </div>
+          <div class="volume-row vol-music${!isMicActive && state ? '' : ' inactive'}">
+            <ha-icon icon="mdi:music"></ha-icon>
+            <input type="range" id="vol-music-slider" min="0" max="100" step="2" value="${musicPct}">
+            <div class="volume-value" id="vol-music-value">${musicPct}%</div>
+          </div>
         </div>
       </div>
     `;
@@ -422,18 +462,41 @@ class BingoabendCard extends HTMLElement {
     if (btnMic)   btnMic.className   = `source-btn ${isMicActive ? 'active-mic' : ''}`;
     if (btnMusic) btnMusic.className = `source-btn ${(!isMicActive && state) ? 'active-music' : ''}`;
 
-    const statusEl = this.shadowRoot.querySelector('.mic-status');
-    if (statusEl) {
-      statusEl.textContent = isMicActive ? '● ON AIR' : '● Musik-Modus';
-      statusEl.className = `mic-status ${isMicActive ? 'on-air' : ''}`;
+    const badge = this.shadowRoot.querySelector('#status-badge');
+    if (badge) {
+      badge.className = `status-badge ${isMicActive ? 'on-air' : 'music-mode'}`;
+      const sourceName = (!isMicActive && currentSource) ? currentSource : null;
+      badge.innerHTML = `
+        <div class="status-dot"></div>
+        <span>${isMicActive ? 'ON AIR' : 'Musik-Modus'}</span>
+        ${sourceName ? `<span class="status-source">· ${this._esc(sourceName)}</span>` : ''}
+      `;
     }
 
-    const volSlider = this.shadowRoot.querySelector('#volume-slider');
-    const volValue  = this.shadowRoot.querySelector('#volume-value');
-    if (volSlider && !volSlider.matches(':active')) {
-      const pct = Math.round((state?.attributes?.volume_level ?? 0.5) * 100);
-      volSlider.value = pct;
-      if (volValue) volValue.textContent = `${pct}%`;
+    // Sync the ACTIVE mode's slider from entity state
+    const currentPct = Math.round((state?.attributes?.volume_level ?? 0.5) * 100);
+    if (isMicActive) {
+      const s = this.shadowRoot.querySelector('#vol-mic-slider');
+      const v = this.shadowRoot.querySelector('#vol-mic-value');
+      if (s && !s.matches(':active')) {
+        s.value = currentPct;
+        this._micVolume = currentPct;
+        if (v) v.textContent = `${currentPct}%`;
+      }
+      // Update inactive class on rows
+      this.shadowRoot.querySelector('.volume-row.vol-mic')?.classList.remove('inactive');
+      this.shadowRoot.querySelector('.volume-row.vol-music')?.classList.add('inactive');
+    } else {
+      const s = this.shadowRoot.querySelector('#vol-music-slider');
+      const v = this.shadowRoot.querySelector('#vol-music-value');
+      if (s && !s.matches(':active')) {
+        s.value = currentPct;
+        this._musicVolume = currentPct;
+        if (v) v.textContent = `${currentPct}%`;
+      }
+      // Update inactive class on rows
+      this.shadowRoot.querySelector('.volume-row.vol-music')?.classList.remove('inactive');
+      this.shadowRoot.querySelector('.volume-row.vol-mic')?.classList.add('inactive');
     }
   }
 
@@ -443,45 +506,75 @@ class BingoabendCard extends HTMLElement {
     root.querySelector('#btn-mic')?.addEventListener('click',   () => this._activateMic());
     root.querySelector('#btn-music')?.addEventListener('click', () => this._activateMusic());
 
-    const volSlider = root.querySelector('#volume-slider');
-    if (volSlider) {
-      volSlider.addEventListener('input', (e) => {
-        const el = this.shadowRoot.querySelector('#volume-value');
-        if (el) el.textContent = `${e.target.value}%`;
+    const micSlider = root.querySelector('#vol-mic-slider');
+    if (micSlider) {
+      micSlider.addEventListener('input', (e) => {
+        const v = this.shadowRoot.querySelector('#vol-mic-value');
+        if (v) v.textContent = `${e.target.value}%`;
       });
-      volSlider.addEventListener('change', (e) => this._setVolume(parseInt(e.target.value) / 100));
+      micSlider.addEventListener('change', (e) => {
+        this._micVolume = parseInt(e.target.value);
+        // Only apply immediately if mic is currently active
+        const cur = this._hass?.states[this._config.sonos_entity]?.attributes?.source;
+        if (cur === this._config.linein_source) {
+          this._callService('media_player', 'volume_set', {
+            entity_id: this._config.sonos_entity, volume_level: this._micVolume / 100,
+          });
+        }
+      });
     }
 
+    const musicSlider = root.querySelector('#vol-music-slider');
+    if (musicSlider) {
+      musicSlider.addEventListener('input', (e) => {
+        const v = this.shadowRoot.querySelector('#vol-music-value');
+        if (v) v.textContent = `${e.target.value}%`;
+      });
+      musicSlider.addEventListener('change', (e) => {
+        this._musicVolume = parseInt(e.target.value);
+        // Only apply immediately if music is currently active
+        const cur = this._hass?.states[this._config.sonos_entity]?.attributes?.source;
+        if (cur !== this._config.linein_source) {
+          this._callService('media_player', 'volume_set', {
+            entity_id: this._config.sonos_entity, volume_level: this._musicVolume / 100,
+          });
+        }
+      });
+    }
   }
 
   // ─── Actions ─────────────────────────────────────────────────────────────
 
   _activateMic() {
+    const entity = this._config.sonos_entity;
+    const st = this._hass?.states[entity];
+    // Save current entity volume as the music volume before switching
+    if (st && st.attributes?.source !== this._config.linein_source) {
+      this._musicVolume = Math.round((st.attributes?.volume_level ?? 0.5) * 100);
+    }
     this._callService('media_player', 'select_source', {
-      entity_id: this._config.sonos_entity,
+      entity_id: entity,
       source: this._config.linein_source,
+    });
+    this._callService('media_player', 'volume_set', {
+      entity_id: entity,
+      volume_level: this._micVolume / 100,
     });
   }
 
   _activateMusic() {
     const entity = this._config.sonos_entity;
     if (this._config.music_source) {
-      // Explicit source configured → select it
       this._callService('media_player', 'select_source', {
         entity_id: entity,
         source: this._config.music_source,
       });
     } else {
-      // No source configured → resume whatever was playing before Line-In.
-      // media_play tells Sonos to resume its last streaming playback.
       this._callService('media_player', 'media_play', { entity_id: entity });
     }
-  }
-
-  _setVolume(level) {
     this._callService('media_player', 'volume_set', {
-      entity_id: this._config.sonos_entity,
-      volume_level: level,
+      entity_id: entity,
+      volume_level: (this._musicVolume ?? 50) / 100,
     });
   }
 
