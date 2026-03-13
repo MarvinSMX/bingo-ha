@@ -1281,47 +1281,81 @@ class BingoabendSoundboardCard extends HTMLElement {
   _openMediaBrowser() {
     const browseEntity = this._config.spotify_entity || this._config.sonos_entity;
     if (!browseEntity) return;
-    this.dispatchEvent(new CustomEvent('show-dialog', {
-      bubbles: true,
-      composed: true,
-      detail: {
-        dialogTag: 'dialog-media-player-browse',
-        dialogImport: () => Promise.resolve(),
-        dialogParams: {
-          entityId: browseEntity,
-          mediaPickedCallback: async (picked) => {
-            const item = picked.item;
-            let contentId = item.media_content_id;
-            let contentType = item.media_content_type;
-            if (contentId?.startsWith('media-source://')) {
-              try {
-                const resolved = await this._hass.callWS({
-                  type: 'media_source/resolve_media',
-                  media_content_id: contentId,
-                });
-                contentId = resolved.url;
-                contentType = resolved.mime_type;
-              } catch (_) {}
-            }
-            this._callService('media_player', 'play_media', {
-              entity_id: this._config.sonos_entity,
+
+    // Create overlay in document.body — avoids shadow DOM scoped registry conflicts
+    const overlay = document.createElement('div');
+    overlay.style.cssText = [
+      'position:fixed;inset:0;z-index:9999',
+      'background:rgba(0,0,0,0.6)',
+      'display:flex;align-items:center;justify-content:center',
+    ].join(';');
+
+    const panel = document.createElement('div');
+    panel.style.cssText = [
+      'background:var(--card-background-color,#fff)',
+      'border-radius:12px',
+      'width:min(640px,95vw)',
+      'height:min(560px,88vh)',
+      'display:flex;flex-direction:column;overflow:hidden',
+    ].join(';');
+
+    const close = () => document.body.contains(overlay) && document.body.removeChild(overlay);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+    const create = () => {
+      const browser = document.createElement('ha-media-player-browse');
+      browser.hass = this._hass;
+      browser.entityId = browseEntity;
+      browser.action = 'play';
+      browser.style.cssText = 'flex:1;min-height:0;overflow:auto';
+      browser.addEventListener('media-picked', async (e) => {
+        close();
+        const item = e.detail.item;
+        let contentId = item.media_content_id;
+        let contentType = item.media_content_type;
+        if (contentId?.startsWith('media-source://')) {
+          try {
+            const resolved = await this._hass.callWS({
+              type: 'media_source/resolve_media',
               media_content_id: contentId,
-              media_content_type: contentType,
             });
-          },
-        },
-      },
-    }));
+            contentId = resolved.url;
+            contentType = resolved.mime_type;
+          } catch (_) {}
+        }
+        this._callService('media_player', 'play_media', {
+          entity_id: this._config.sonos_entity,
+          media_content_id: contentId,
+          media_content_type: contentType,
+        });
+      });
+      panel.appendChild(browser);
+      overlay.appendChild(panel);
+      document.body.appendChild(overlay);
+    };
+
+    if (customElements.get('ha-media-player-browse')) {
+      create();
+    } else {
+      customElements.whenDefined('ha-media-player-browse').then(create);
+    }
   }
 
   _attachListeners(root) {
     root.querySelectorAll('.sound-btn[data-idx]').forEach(btn => {
-      btn.addEventListener('click', () => this._playSound(parseInt(btn.dataset.idx, 10)));
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this._playSound(parseInt(btn.dataset.idx, 10));
+      });
     });
     root.querySelector('#btn-browse')?.addEventListener('click', () => this._openMediaBrowser());
   }
 
   _playSound(idx) {
+    if (this._soundLocked) return;
+    this._soundLocked = true;
+    setTimeout(() => { this._soundLocked = false; }, 1500);
+
     const sound = this._config.sounds?.[idx];
     if (!sound?.url) return;
 
