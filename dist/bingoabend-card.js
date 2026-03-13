@@ -1282,41 +1282,39 @@ class BingoabendSoundboardCard extends HTMLElement {
   }
 
   async _loadSpotifyPlaylists() {
-    const spotifyEntity = this._config.spotify_entity ||
-      Object.keys(this._hass.states).find(e => e.startsWith('media_player.spotify'));
-    if (!spotifyEntity) {
-      console.warn('[Soundboard] Kein Spotify Entity gefunden');
-      return;
-    }
+    const sonosEntity = this._config.sonos_entity;
 
-    const browse = (id) => this._hass.callWS({
-      type: 'media_source/browse_media',
-      ...(id ? { media_content_id: id } : {}),
+    // Browse via the Sonos media player entity — same as the built-in media player card
+    const browsePlayer = (type, id) => this._hass.callWS({
+      type: 'media_player/browse_media',
+      entity_id: sonosEntity,
+      media_content_type: type || '',
+      media_content_id: id || '',
     });
 
     try {
-      // Browse media source root to find Spotify entry
-      const root = await browse(null);
-      console.log('[Soundboard] Media source root:', root.children?.map(c => c.title + ' | ' + c.media_content_id));
+      const root = await browsePlayer('', '');
+      console.log('[Soundboard] Sonos root:', root.children?.map(c => c.title + ' | ' + c.media_content_type + ' | ' + c.media_content_id));
 
+      // Find Spotify in root children
       const spotifyItem = root.children?.find(c =>
-        (c.media_content_id || '').toLowerCase().includes('spotify') ||
-        (c.title || '').toLowerCase().includes('spotify')
+        (c.title || '').toLowerCase().includes('spotify') ||
+        (c.media_content_id || '').toLowerCase().includes('spotify')
       );
-      if (!spotifyItem) throw new Error('Spotify nicht in Media Library gefunden');
+      if (!spotifyItem) throw new Error('Spotify nicht in Sonos Media Browser');
 
       // Browse Spotify root
-      const spotifyRoot = await browse(spotifyItem.media_content_id);
-      console.log('[Soundboard] Spotify children:', spotifyRoot.children?.map(c => c.title + ' | ' + c.media_content_id));
+      const spotifyRoot = await browsePlayer(spotifyItem.media_content_type, spotifyItem.media_content_id);
+      console.log('[Soundboard] Spotify root:', spotifyRoot.children?.map(c => c.title + ' | ' + c.media_content_type + ' | ' + c.media_content_id));
 
-      // Find playlists section
+      // Find playlists section (My Playlists / Playlists)
       let playlists = spotifyRoot.children || [];
       const playlistsItem = playlists.find(c =>
-        (c.media_content_id || '').toLowerCase().includes('playlist') ||
-        (c.title || '').toLowerCase().includes('playlist')
+        (c.title || '').toLowerCase().includes('playlist') ||
+        (c.media_content_id || '').toLowerCase().includes('playlist')
       );
-      if (playlistsItem?.can_expand) {
-        const sub = await browse(playlistsItem.media_content_id);
+      if (playlistsItem?.can_expand !== false) {
+        const sub = await browsePlayer(playlistsItem.media_content_type, playlistsItem.media_content_id);
         playlists = sub.children || [];
       }
 
@@ -1326,7 +1324,7 @@ class BingoabendSoundboardCard extends HTMLElement {
         this._render();
         return;
       }
-      throw new Error('Keine Playlists gefunden');
+      throw new Error('Keine Playlists in Spotify gefunden');
     } catch (e) {
       console.warn('[Soundboard] Spotify laden fehlgeschlagen:', e);
     }
